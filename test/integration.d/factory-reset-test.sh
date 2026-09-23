@@ -1,14 +1,14 @@
 #!/bin/bash
 #
 # Factory reset on a shared ESP: proves omarchy-system-factory-reset hands a
-# machine on without destroying a dual-boot setup (basecamp/omarchy#6847).
+# machine on without destroying a dual-boot setup (basecamp/arch-deploy#6847).
 # Dresses the installed ESP up as a dual-boot machine (Windows + a foreign
 # Linux, exactly what the reset must not destroy), runs a real factory reset,
 # and walks the first-boot setup that follows.
 #
 # Staging asserts the Windows and foreign Linux entries and their ESP payload
-# survive, the old Omarchy identity (entry + directory) is gone, and a fresh
-# Omarchy entry exists. First boot asserts provisioning completes, the machine
+# survive, the old arch-deploy identity (entry + directory) is gone, and a fresh
+# arch-deploy entry exists. First boot asserts provisioning completes, the machine
 # identity changed, and the foreign entries are still intact afterwards.
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
@@ -20,7 +20,7 @@ base_image_ready || { echo "No base image; run this through ./test/integration" 
 # --------------------------------------------------------------- esp fixture
 
 # Dress the ESP up as a shared dual-boot ESP: a Windows entry, and a second
-# Linux installation cloned from the real Omarchy entry so its shape is
+# Linux installation cloned from the real arch-deploy entry so its shape is
 # exactly what limine-entry-tool writes, under a foreign machine-id with its
 # own boot directory and byte-identical UKIs (so the cloned entry hashes
 # stay valid).
@@ -33,11 +33,11 @@ fixture_shared_esp() {
     set -euo pipefail
     awk '/^\//{block=1} block' /boot/limine.conf |
       sed -e 's/$OLD_ID/$FOREIGN_ID/g' \
-          -e 's|/EFI/Linux/omarchy_|/EFI/Linux/foreign_|g' \
+          -e 's|/EFI/Linux/arch_deploy_|/EFI/Linux/foreign_|g' \
           -e 's|^/\(+\{0,1\}\)\([^/+]\)|/\1Foreign \2|' >/tmp/foreign-entries
     grep -q 'machine-id=$FOREIGN_ID' /tmp/foreign-entries
-    for uki in /boot/EFI/Linux/omarchy_*.efi; do
-      cp \"\$uki\" \"\${uki/omarchy_/foreign_}\"
+    for uki in /boot/EFI/Linux/arch_deploy_*.efi; do
+      cp \"\$uki\" \"\${uki/arch_deploy_/foreign_}\"
     done
     cat >>/boot/limine.conf <<'CONF'
 
@@ -129,11 +129,11 @@ reset_phase() {
     ssh_sudo "grep -q foreign-payload /boot/$FOREIGN_ID/marker"
   check "foreign UKI survives staging" \
     ssh_sudo "test -f /boot/EFI/Linux/foreign_linux.efi"
-  check "old omarchy entry is removed by staging" \
+  check "old arch-deploy entry is removed by staging" \
     ssh_sudo "! grep -q 'machine-id=$OLD_ID' /boot/limine.conf"
-  check "old omarchy boot directory is removed by staging" \
+  check "old arch-deploy boot directory is removed by staging" \
     ssh_sudo "! test -e /boot/$OLD_ID"
-  check "a fresh omarchy entry exists after staging" \
+  check "a fresh arch-deploy entry exists after staging" \
     ssh_sudo "grep -o 'machine-id=[0-9a-f]\{32\}' /boot/limine.conf | grep -qv 'machine-id=$FOREIGN_ID'"
 
   ssh_sudo "cat /boot/limine.conf" >"$RUN_DIR/limine.conf.staged" || true
@@ -164,15 +164,15 @@ drive_first_boot() {
   # The reset must leave a bootable default: the machine has to reach the
   # first-boot greeter on its own. A numeric default_entry pointing at a
   # moved entry parks Limine at the menu instead — catch that explicitly,
-  # then boot the Omarchy entry by hand so the rest of the flow still runs.
+  # then boot the arch-deploy entry by hand so the rest of the flow still runs.
   if wait_for_screen "Linux by DHH" 120 2>/dev/null; then
     printf 'ok - %s\n' "the machine boots into first-boot setup unattended"
   else
-    if ocr_screen | grep -qi "Omarchy Bootloader"; then
+    if ocr_screen | grep -qi "arch-deploy Bootloader"; then
       printf 'not ok - %s\n' "the machine boots into first-boot setup unattended (parked at the Limine menu)"
       ((FAILURES += 1))
       capture_console "failure-firstboot-parked-at-menu"
-      log "Selecting the Omarchy entry manually to continue the run"
+      log "Selecting the arch-deploy entry manually to continue the run"
       press down; sleep 1; press down; sleep 1; press down; sleep 1
       press ret
       wait_for_screen "Linux by DHH" 600
@@ -203,9 +203,9 @@ drive_first_boot() {
     elif grep -qi "Password" <<<"$text"; then
       step="password"; [[ -v answered[$step] ]] || { type_text "$GUEST_PASSWORD"; press ret; }
     elif grep -qi "Full name" <<<"$text"; then
-      step="fullname"; [[ -v answered[$step] ]] || { type_text "Omarchy Test"; press ret; }
+      step="fullname"; [[ -v answered[$step] ]] || { type_text "arch-deploy Test"; press ret; }
     elif grep -qi "Email address" <<<"$text"; then
-      step="email"; [[ -v answered[$step] ]] || { type_text "test@omarchy.org"; capture_console "success-firstboot-02-form"; press ret; }
+      step="email"; [[ -v answered[$step] ]] || { type_text "test@arch-deploy.org"; capture_console "success-firstboot-02-form"; press ret; }
     elif grep -qi "Hostname" <<<"$text"; then
       step="hostname"; [[ -v answered[$step] ]] || { type_text "$GUEST_HOSTNAME"; press ret; }
     elif grep -qi "Timezone" <<<"$text"; then
@@ -241,7 +241,7 @@ first_boot_phase() {
   local waited=0 rc
   while true; do
     rc=0
-    ssh_guest "test -f /var/lib/omarchy/provisioning/pending" 2>/dev/null || rc=$?
+    ssh_guest "test -f /var/lib/arch-deploy/provisioning/pending" 2>/dev/null || rc=$?
     (( rc == 0 || rc == 255 )) || break
     if ((waited >= 900)); then
       capture_console "failure-provisioning-timeout"
@@ -256,7 +256,7 @@ first_boot_phase() {
   new_id=$(ssh_guest "cat /etc/machine-id" | tr -d '\r\n')
 
   check "provisioning completed on first boot" \
-    ssh_guest "! test -f /var/lib/omarchy/provisioning/pending"
+    ssh_guest "! test -f /var/lib/arch-deploy/provisioning/pending"
   # A well-formed identity, and not one we already know: an empty or echoed
   # ID would make the boot-entry grep below match the wrong entry.
   check "the reset minted a fresh machine identity" \
@@ -271,7 +271,7 @@ first_boot_phase() {
     ssh_sudo "grep -q foreign-payload /boot/$FOREIGN_ID/marker"
   check "foreign UKI survives the first boot" \
     ssh_sudo "test -f /boot/EFI/Linux/foreign_linux.efi"
-  check "old omarchy identity never returns" \
+  check "old arch-deploy identity never returns" \
     ssh_sudo "! grep -q 'machine-id=$OLD_ID' /boot/limine.conf"
   check "the new identity owns a boot entry" \
     ssh_sudo "grep -q 'machine-id=$new_id' /boot/limine.conf"

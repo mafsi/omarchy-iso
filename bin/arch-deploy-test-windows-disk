@@ -18,12 +18,12 @@ TEMPORARY_DISK=""
 
 usage() {
   cat <<USAGE
-Usage: omarchy-iso-test-windows-disk [--recreate] [--gap] [release/omarchy.iso]
+Usage: arch-deploy-test-windows-disk [--recreate] [--gap] [release/arch-deploy.iso]
 
 Creates or validates a synthetic Windows-style test disk with:
   - a 512MiB EFI partition containing EFI/Microsoft
   - an existing ext4 data partition with a preservation marker
-  - more than 64GiB of contiguous unallocated space for Omarchy
+  - more than 64GiB of contiguous unallocated space for arch-deploy
 
 This exercises Windows partition detection and preservation; it is not a
 bootable Windows installation.
@@ -41,8 +41,8 @@ Options:
   -h, --help  Show this help
 
 Paths can be overridden with:
-  OMARCHY_ISO_TEST_WINDOWS_DISK
-  OMARCHY_ISO_TEST_WINDOWS_OVMF_VARS
+  ARCH_DEPLOY_TEST_WINDOWS_DISK
+  ARCH_DEPLOY_TEST_WINDOWS_OVMF_VARS
 USAGE
 }
 
@@ -80,12 +80,12 @@ done
 # Separate images per layout so the two fixtures can coexist and neither has
 # to be rebuilt to run the other.
 if (( GAP )); then
-  TEST_DISK="${OMARCHY_ISO_TEST_WINDOWS_DISK:-/tmp/omarchy-iso-test-windows-gap.qcow2}"
-  TEST_OVMF_VARS="${OMARCHY_ISO_TEST_WINDOWS_OVMF_VARS:-/tmp/OVMF_VARS.omarchy-iso-test-windows-gap.fd}"
+  TEST_DISK="${ARCH_DEPLOY_TEST_WINDOWS_DISK:-/tmp/arch-deploy-test-windows-gap.qcow2}"
+  TEST_OVMF_VARS="${ARCH_DEPLOY_TEST_WINDOWS_OVMF_VARS:-/tmp/OVMF_VARS.arch-deploy-test-windows-gap.fd}"
   LAYOUT_LABEL="512MiB Windows ESP + data + deleted slot 3 + data + 64GiB+ free"
 else
-  TEST_DISK="${OMARCHY_ISO_TEST_WINDOWS_DISK:-/tmp/omarchy-iso-test-windows.qcow2}"
-  TEST_OVMF_VARS="${OMARCHY_ISO_TEST_WINDOWS_OVMF_VARS:-/tmp/OVMF_VARS.omarchy-iso-test-windows.fd}"
+  TEST_DISK="${ARCH_DEPLOY_TEST_WINDOWS_DISK:-/tmp/arch-deploy-test-windows.qcow2}"
+  TEST_OVMF_VARS="${ARCH_DEPLOY_TEST_WINDOWS_OVMF_VARS:-/tmp/OVMF_VARS.arch-deploy-test-windows.fd}"
   LAYOUT_LABEL="512MiB Windows ESP + existing data + 64GiB+ free"
 fi
 
@@ -213,7 +213,7 @@ validate_test_disk() {
   if (( valid )); then
     mount_partition "$data" ro || valid=0
     if (( valid )); then
-      sudo test -f "$MOUNT_DIR/OMARCHY-MUST-NOT-TOUCH.txt" || valid=0
+      sudo test -f "$MOUNT_DIR/ARCH_DEPLOY-MUST-NOT-TOUCH.txt" || valid=0
     fi
     cleanup_mount
   fi
@@ -259,13 +259,13 @@ create_test_disk() {
 
   mount_partition "$esp"
   sudo mkdir -p "$MOUNT_DIR/EFI/Microsoft/Boot"
-  printf '%s\n' 'Synthetic Windows ESP for Omarchy ISO testing.' |
+  printf '%s\n' 'Synthetic Windows ESP for arch-deploy testing.' |
     sudo tee "$MOUNT_DIR/EFI/Microsoft/README.txt" >/dev/null
   cleanup_mount
 
   mount_partition "$data"
-  printf '%s\n' 'This existing partition must survive the Omarchy installation.' |
-    sudo tee "$MOUNT_DIR/OMARCHY-MUST-NOT-TOUCH.txt" >/dev/null
+  printf '%s\n' 'This existing partition must survive the arch-deploy installation.' |
+    sudo tee "$MOUNT_DIR/ARCH_DEPLOY-MUST-NOT-TOUCH.txt" >/dev/null
   cleanup_mount
 
   sync
@@ -299,7 +299,7 @@ select_iso() {
   printf '%s\n' "${isos[@]}" | gum choose --header "Select ISO to install"
 }
 
-omarchy-pkg-add qemu-full edk2-ovmf parted dosfstools e2fsprogs
+arch-deploy-pkg-add qemu-full edk2-ovmf parted dosfstools e2fsprogs
 sudo modprobe nbd max_part=16
 
 if [[ -f $TEST_DISK ]] && (( ! RECREATE )); then
@@ -329,7 +329,7 @@ gum style --border rounded --padding "0 1" --border-foreground 6 \
 if gum confirm "Start installation on this disk?"; then
   ISO="$(select_iso)"
   trap - EXIT INT TERM
-  exec "$SCRIPT_DIR/omarchy-iso-boot" \
+  exec "$SCRIPT_DIR/arch-deploy-boot" \
     --reuse \
     --disk "$TEST_DISK" \
     --ovmf-vars "$TEST_OVMF_VARS" \

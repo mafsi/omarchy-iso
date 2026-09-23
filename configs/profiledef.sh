@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2034
 
-iso_name="omarchy"
-iso_label="OMARCHY_$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y%m)"
-iso_publisher="Omarchy <https://omarchy.org>"
-iso_application="Omarchy Installer"
+iso_name="arch-deploy"
+iso_label="ARCH_DEPLOY_$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y%m)"
+iso_publisher="arch-deploy <https://arch-deploy.org>"
+iso_application="arch-deploy Installer"
 iso_version="$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y.%m.%d)"
 install_dir="arch"
 buildmodes=('iso')
@@ -26,7 +26,7 @@ airootfs_image_tool_options=(
   '-comp' 'zstd'
   '-Xcompression-level' '19'
   '-b' '1M'
-  '-action' 'uncompressed@subpathname(var/cache/omarchy/mirror/offline)'
+  '-action' 'uncompressed@subpathname(var/cache/arch-deploy/mirror/offline)'
 )
 bootstrap_tarball_compression=('zstd' '-c' '-T0' '--auto-threads=logical' '--long' '-19')
 file_permissions=(
@@ -36,11 +36,11 @@ file_permissions=(
   ["/root/.gnupg"]="0:0:700"
   ["/root/configurator"]="0:0:755"
   ["/usr/local/bin/choose-mirror"]="0:0:755"
-  ["/usr/local/bin/omarchy-cidata-load"]="0:0:755"
-  ["/usr/local/bin/omarchy-iso-cleanup-disk"]="0:0:755"
-  ["/usr/local/bin/omarchy-install-dashboard"]="0:0:755"
-  ["/usr/local/bin/omarchy-install-diagnose-media"]="0:0:755"
-  ["/usr/local/bin/omarchy-iso-install"]="0:0:755"
+  ["/usr/local/bin/arch-deploy-cidata-load"]="0:0:755"
+  ["/usr/local/bin/arch-deploy-cleanup-disk"]="0:0:755"
+  ["/usr/local/bin/arch-deploy-install-dashboard"]="0:0:755"
+  ["/usr/local/bin/arch-deploy-install-diagnose-media"]="0:0:755"
+  ["/usr/local/bin/arch-deploy-install"]="0:0:755"
   ["/usr/local/bin/omarchy-upload-log"]="0:0:755"
-  ["/var/cache/omarchy/mirror/offline/"]="0:0:775"
+  ["/var/cache/arch-deploy/mirror/offline/"]="0:0:775"
 )

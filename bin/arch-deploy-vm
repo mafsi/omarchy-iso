@@ -4,8 +4,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VM_DIR="$(dirname "$SCRIPT_DIR")/vm-saves"
-TMP_DISK="${OMARCHY_VM_DISK:-/tmp/omarchy-iso-boot.qcow2}"
-TMP_OVMF="${OMARCHY_VM_OVMF_VARS:-/tmp/OVMF_VARS.4m.fd}"
+TMP_DISK="${ARCH_DEPLOY_VM_DISK:-/tmp/arch-deploy-boot.qcow2}"
+TMP_OVMF="${ARCH_DEPLOY_VM_OVMF_VARS:-/tmp/OVMF_VARS.4m.fd}"
 
 mkdir -p "$VM_DIR"
 
@@ -19,7 +19,7 @@ save_vm() {
 
   if [[ ! -f "$TMP_DISK" || ! -f "$TMP_OVMF" ]]; then
     echo "Error: No active VM found at $TMP_DISK / $TMP_OVMF"
-    echo "Boot a VM first with: omarchy-iso-boot [iso]"
+    echo "Boot a VM first with: arch-deploy-boot [iso]"
     exit 1
   fi
 
@@ -34,7 +34,7 @@ save_vm() {
   mkdir -p "$vm_path"
 
   echo "Saving VM snapshot '$name'..."
-  cp "$TMP_DISK" "$vm_path/omarchy-iso-boot.qcow2"
+  cp "$TMP_DISK" "$vm_path/arch-deploy-boot.qcow2"
   cp "$TMP_OVMF" "$vm_path/OVMF_VARS.4m.fd"
 
   gum style --foreground 212 "✓ Saved to $vm_path"
@@ -121,12 +121,12 @@ boot_vm() {
 
   echo "Copying VM '$name' to $active_disk..."
   mkdir -p "$(dirname "$active_disk")" "$(dirname "$active_ovmf")"
-  cp "$vm_path/omarchy-iso-boot.qcow2" "$active_disk"
+  cp "$vm_path/arch-deploy-boot.qcow2" "$active_disk"
   cp "$vm_path/OVMF_VARS.4m.fd" "$active_ovmf"
 
   gum style --foreground 212 "✓ VM ready. Booting..."
 
-  exec omarchy-iso-boot "${boot_args[@]}" /dev/null reuse
+  exec arch-deploy-boot "${boot_args[@]}" /dev/null reuse
 }
 
 command="${1:-}"
@@ -144,7 +144,7 @@ case "$command" in
     ;;
   *)
     gum style --border rounded --padding "0 1" --border-foreground 212 \
-      "$(gum style --bold 'omarchy-vm') - VM snapshot manager" \
+      "$(gum style --bold 'arch-deploy-vm') - VM snapshot manager" \
       "" \
       "$(gum style --foreground 245 'Commands:')" \
       "  save [name]                 Save current active VM" \

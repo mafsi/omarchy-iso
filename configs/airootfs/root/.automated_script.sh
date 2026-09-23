@@ -3,7 +3,7 @@
 # Live ISO entry point on tty1: set up the live VT, run the configurator
 # wizard, then hand off to the Python install orchestrator. Mirrors the
 # stream/env contract from the previously-working installer:
-#   - stdout teed to /var/log/omarchy-install.log (CSI-stripped) AND to tty
+#   - stdout teed to /var/log/arch-deploy-install.log (CSI-stripped) AND to tty
 #   - stderr direct to /dev/tty so gum (which draws its TUI on stderr)
 #     renders correctly
 #   - CLICOLOR_FORCE/FORCE_COLOR so gum emits ANSI even with stdout piped
@@ -12,20 +12,20 @@ set -euo pipefail
 
 [[ $(tty) == /dev/tty1 ]] || exit 0
 
-export OMARCHY_MIRROR="$(cat /root/omarchy_mirror)"
-if [[ -f /root/omarchy_iso_ref ]]; then
-  export OMARCHY_ISO_REF="$(cat /root/omarchy_iso_ref)"
+export ARCH_DEPLOY_MIRROR="$(cat /root/arch_deploy_mirror)"
+if [[ -f /root/arch_deploy_ref ]]; then
+  export ARCH_DEPLOY_REF="$(cat /root/arch_deploy_ref)"
 fi
-if [[ -f /usr/share/omarchy-iso/package-targets ]]; then
+if [[ -f /usr/share/arch-deploy/package-targets ]]; then
   # shellcheck disable=SC1091
-  source /usr/share/omarchy-iso/package-targets
+  source /usr/share/arch-deploy/package-targets
   export OMARCHY_RUNTIME_PACKAGE OMARCHY_SETTINGS_PACKAGE OMARCHY_NVIM_PACKAGE
 fi
 export OMARCHY_PATH=/usr/share/omarchy
 export OMARCHY_INSTALL=$OMARCHY_PATH/install
-export OMARCHY_INSTALL_LOG_FILE=/var/log/omarchy-install.log
-if [[ -f /usr/share/omarchy-iso/install-debug ]]; then
-  export OMARCHY_INSTALL_DEBUG=1
+export ARCH_DEPLOY_INSTALL_LOG_FILE=/var/log/arch-deploy-install.log
+if [[ -f /usr/share/arch-deploy/install-debug ]]; then
+  export ARCH_DEPLOY_INSTALL_DEBUG=1
 fi
 
 # Tokyo Night palette so the live VT matches the installed look.
@@ -42,17 +42,17 @@ set_tokyo_night_colors() {
 set_tokyo_night_colors
 
 mkdir -p /var/log
-touch "$OMARCHY_INSTALL_LOG_FILE"
+touch "$ARCH_DEPLOY_INSTALL_LOG_FILE"
 
 export COLUMNS=$(tput cols)
 export LINES=$(tput lines)
-exec > >(tee >(sed -u 's/\x1b\[[0-9;?]*[A-Za-z]//g' >>"$OMARCHY_INSTALL_LOG_FILE") 2>/dev/null) 2>/dev/tty
+exec > >(tee >(sed -u 's/\x1b\[[0-9;?]*[A-Za-z]//g' >>"$ARCH_DEPLOY_INSTALL_LOG_FILE") 2>/dev/null) 2>/dev/tty
 export CLICOLOR_FORCE=1
 export FORCE_COLOR=1
 
-if [[ ${OMARCHY_INSTALL_DEBUG:-} == "1" ]]; then
-  echo "=== Omarchy ISO debug build ==="
-  [[ -f /usr/share/omarchy-iso/build-info ]] && cat /usr/share/omarchy-iso/build-info
+if [[ ${ARCH_DEPLOY_INSTALL_DEBUG:-} == "1" ]]; then
+  echo "=== arch-deploy debug build ==="
+  [[ -f /usr/share/arch-deploy/build-info ]] && cat /usr/share/arch-deploy/build-info
   pacman -Q omarchy-settings omarchy-keyring 2>/dev/null || true
   echo "================================"
 fi
@@ -66,12 +66,12 @@ fi
 #
 # Clean page cache only, so the kernel reclaims it under pressure instead of
 # OOMing, and a budget so small machines never evict what was just warmed.
-# Set OMARCHY_NO_PREFETCH=1 to A/B the same ISO with this disabled.
+# Set ARCH_DEPLOY_NO_PREFETCH=1 to A/B the same ISO with this disabled.
 warm_offline_mirror() {
-  local mirror=/var/cache/omarchy/mirror/offline
+  local mirror=/var/cache/arch-deploy/mirror/offline
   local budget_kb spent_kb=0 size_kb path
 
-  [[ ${OMARCHY_NO_PREFETCH:-} == 1 ]] && return 0
+  [[ ${ARCH_DEPLOY_NO_PREFETCH:-} == 1 ]] && return 0
   [[ -d $mirror ]] || return 0
 
   budget_kb=$(($(awk '/^MemAvailable:/ { print $2 }' /proc/meminfo) / 2))
@@ -92,11 +92,11 @@ trap 'kill "$warm_pid" 2>/dev/null' EXIT
 
 cd /root
 # Autoinstall: a cidata drive carrying the configurator's own output files
-# stands in for the wizard. omarchy-cidata-load copies them into /root and
+# stands in for the wizard. arch-deploy-cidata-load copies them into /root and
 # everything downstream runs the ordinary path against ordinary inputs.
-if /usr/local/bin/omarchy-cidata-load; then
+if /usr/local/bin/arch-deploy-cidata-load; then
   echo "Autoinstall configuration found on cidata drive; skipping the configurator."
-  export OMARCHY_UI_INTERACTIVE=no
+  export ARCH_DEPLOY_UI_INTERACTIVE=no
 else
   ./configurator
 fi
@@ -107,20 +107,20 @@ fi
 # Parse the flag with jq (the same JSON semantics the orchestrator uses) rather
 # than a line regex, so a reformatted config can't read as a direct install.
 if [[ -f /root/defer-provisioning ]] ||
-  [[ "$(jq -r '.omarchy_install.defer_provisioning // false' /root/user_configuration.json 2>/dev/null)" == "true" ]]; then
-  export OMARCHY_UI_DEFER_PROVISIONING=yes
+  [[ "$(jq -r '.arch_deploy_install.defer_provisioning // false' /root/user_configuration.json 2>/dev/null)" == "true" ]]; then
+  export ARCH_DEPLOY_UI_DEFER_PROVISIONING=yes
 fi
 
 # The foreground dashboard is now the sole visible install UI owner. It starts
 # the actual installer as a non-interactive child, logs child output, waits for
 # completion, then renders the final installed-time/reboot prompt itself.
-export OMARCHY_DASHBOARD_TTY="$(tty)"
-rm -f /run/omarchy-install/state.json
-/usr/local/bin/omarchy-install-dashboard \
-  "$OMARCHY_INSTALL_LOG_FILE" \
-  /run/omarchy-install/state.json \
+export ARCH_DEPLOY_DASHBOARD_TTY="$(tty)"
+rm -f /run/arch-deploy-install/state.json
+/usr/local/bin/arch-deploy-install-dashboard \
+  "$ARCH_DEPLOY_INSTALL_LOG_FILE" \
+  /run/arch-deploy-install/state.json \
   -- \
-  /usr/local/bin/omarchy-iso-install \
+  /usr/local/bin/arch-deploy-install \
     --config /root/user_configuration.json \
     --creds /root/user_credentials.json \
     --full-name-file /root/user_full_name.txt \

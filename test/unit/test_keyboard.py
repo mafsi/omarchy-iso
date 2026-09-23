@@ -8,17 +8,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "configs/airootfs/usr/share/omarchy-iso"))
+sys.path.insert(0, str(ROOT / "configs/airootfs/usr/share/arch-deploy"))
 
 from orchestrator import keyboard as KEYBOARD  # noqa: E402
 
-# The layout list lives in the Omarchy runtime now, shared verbatim with the
+# The layout list lives in the arch-deploy runtime now, shared verbatim with the
 # first-boot owner setup; build-iso.sh vendors it onto the ISO. Read it from
 # wherever this checkout can see a runtime, and skip the coverage test rather
 # than fail when none is around (a bare CI checkout of just this repo).
 SETUP_FORM_CANDIDATES = (
     Path("/omarchy-source/install/provisioning/setup-form.sh"),
-    ROOT.parent / "omarchy/install/provisioning/setup-form.sh",
+    ROOT.parent / "arch-deploy/install/provisioning/setup-form.sh",
     Path("/usr/share/omarchy/install/provisioning/setup-form.sh"),
 )
 
@@ -28,7 +28,7 @@ def supported_keymaps():
         if not candidate.is_file():
             continue
         block = re.search(
-            r"OMARCHY_KEYBOARD_LAYOUTS=\$'(.*?)'\n", candidate.read_text(), re.DOTALL
+            r"ARCH_DEPLOY_KEYBOARD_LAYOUTS=\$'(.*?)'\n", candidate.read_text(), re.DOTALL
         )
         assert block, f"no layout list in {candidate}"
         return [line.split("|", 1)[1] for line in block.group(1).splitlines()]
@@ -48,7 +48,7 @@ class KeyboardConfigurationTest(unittest.TestCase):
         return target
 
     def test_writes_keymap_and_xkb_settings_and_preserves_font(self):
-        # XKBLAYOUT is load-bearing: omarchy's detect-keyboard-layout.sh copies
+        # XKBLAYOUT is load-bearing: arch-deploy's detect-keyboard-layout.sh copies
         # it into Hyprland's kb_layout on the installed system.
         with tempfile.TemporaryDirectory() as directory:
             target = self.target(directory)
@@ -60,7 +60,7 @@ class KeyboardConfigurationTest(unittest.TestCase):
 
     def test_all_configurator_keymaps_are_known_to_localectl(self):
         if SUPPORTED_KEYMAPS is None:
-            self.skipTest("no Omarchy runtime checkout to read the layout list from")
+            self.skipTest("no arch-deploy runtime checkout to read the layout list from")
         for keymap in SUPPORTED_KEYMAPS:
             with self.subTest(keymap=keymap), tempfile.TemporaryDirectory() as directory:
                 target = self.target(directory)

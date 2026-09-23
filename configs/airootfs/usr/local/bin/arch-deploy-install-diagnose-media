@@ -24,11 +24,11 @@
 
 set -uo pipefail
 
-TARGET_PACKAGE_CACHE="${OMARCHY_TARGET_PACKAGE_CACHE:-/mnt/var/cache/pacman/pkg}"
-OFFLINE_MIRROR="${OMARCHY_OFFLINE_MIRROR:-/var/cache/omarchy/mirror/offline}"
+TARGET_PACKAGE_CACHE="${ARCH_DEPLOY_TARGET_PACKAGE_CACHE:-/mnt/var/cache/pacman/pkg}"
+OFFLINE_MIRROR="${ARCH_DEPLOY_OFFLINE_MIRROR:-/var/cache/arch-deploy/mirror/offline}"
 
 if (( $# == 0 )); then
-  echo "Usage: omarchy-install-diagnose-media <log-file>..." >&2
+  echo "Usage: arch-deploy-install-diagnose-media <log-file>..." >&2
   exit 2
 fi
 

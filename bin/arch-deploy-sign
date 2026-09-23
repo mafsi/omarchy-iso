@@ -3,12 +3,12 @@
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
-  echo "usage: omarchy-iso-sign [release/omarchy.iso]"
+  echo "usage: arch-deploy-sign [release/arch-deploy.iso]"
   exit 1
 fi
 
 iso="$1"
-key_ref="op://Shared/Omarchy GPG Private Key/omarchy-private.asc"
+key_ref="op://Shared/arch-deploy GPG Private Key/arch-deploy-private.asc"
 
 if [[ ! -f $iso ]]; then
   echo "ISO not found: $iso" >&2
@@ -28,7 +28,7 @@ gnupg_home="$(mktemp -d)"
 chmod 700 "$gnupg_home"
 trap 'rm -rf "$gnupg_home"' EXIT
 
-op read "$key_ref" --account Omarchy |
+op read "$key_ref" --account arch-deploy |
   gpg --batch --homedir "$gnupg_home" --import >/dev/null
 
 signing_key="$(

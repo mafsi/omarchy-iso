@@ -27,7 +27,7 @@ The canonical call sequence (mirrored from archinstall.scripts.guided.py) is:
         inst.enable_service(services)
         inst.genfstab()
 
-Our orchestrator installs Omarchy's Limine files directly instead of invoking
+Our orchestrator installs arch-deploy's Limine files directly instead of invoking
 archinstall's bootloader helper, so EFI paths and efibootmgr labels are ours
 from the start.
 """
@@ -68,7 +68,7 @@ def load_arch_config(config_path: Path, creds_path: Path) -> ArchConfigHandler:
     import sys
     saved_argv = sys.argv
     sys.argv = [
-        saved_argv[0] if saved_argv else "omarchy-iso-install",
+        saved_argv[0] if saved_argv else "arch-deploy-install",
         "--config", str(config_path),
         "--creds", str(creds_path),
     ]

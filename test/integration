@@ -5,7 +5,7 @@
 # happens once per ISO and is saved as a reusable base image; every scenario
 # then boots a throwaway overlay of that base.
 #
-# Usage: test/integration [release/omarchy.iso] [scenario ...] [options]
+# Usage: test/integration [release/arch-deploy.iso] [scenario ...] [options]
 #
 #   scenario       Basename of a test/integration.d/<scenario>-test.sh file;
 #                  all scenarios run when none are named
@@ -23,18 +23,18 @@ ISO=""
 REUSE_BASE=false
 SCENARIOS=()
 
-export OMARCHY_INTEGRATION_SSH_PORT=2322
-export OMARCHY_INTEGRATION_MEMORY=8192
-export OMARCHY_INTEGRATION_INSTALL_TIMEOUT=2400
-export OMARCHY_INTEGRATION_NO_PREVIEW=false
+export ARCH_DEPLOY_INTEGRATION_SSH_PORT=2322
+export ARCH_DEPLOY_INTEGRATION_MEMORY=8192
+export ARCH_DEPLOY_INTEGRATION_INSTALL_TIMEOUT=2400
+export ARCH_DEPLOY_INTEGRATION_NO_PREVIEW=false
 
 while (($#)); do
   case "$1" in
     --reuse-base) REUSE_BASE=true ;;
-    --no-preview) OMARCHY_INTEGRATION_NO_PREVIEW=true ;;
-    --port) OMARCHY_INTEGRATION_SSH_PORT="$2"; shift ;;
-    --memory) OMARCHY_INTEGRATION_MEMORY="$2"; shift ;;
-    --timeout) OMARCHY_INTEGRATION_INSTALL_TIMEOUT="$2"; shift ;;
+    --no-preview) ARCH_DEPLOY_INTEGRATION_NO_PREVIEW=true ;;
+    --port) ARCH_DEPLOY_INTEGRATION_SSH_PORT="$2"; shift ;;
+    --memory) ARCH_DEPLOY_INTEGRATION_MEMORY="$2"; shift ;;
+    --timeout) ARCH_DEPLOY_INTEGRATION_INSTALL_TIMEOUT="$2"; shift ;;
     -*) echo "Unknown option: $1" >&2; exit 1 ;;
     *)
       if [[ $1 == *.iso ]]; then
@@ -67,10 +67,10 @@ else
   done
 fi
 
-omarchy-pkg-add qemu-full edk2-ovmf socat imagemagick tesseract tesseract-data-eng mtools
+arch-deploy-pkg-add qemu-full edk2-ovmf socat imagemagick tesseract tesseract-data-eng mtools
 
-export OMARCHY_INTEGRATION_ISO
-OMARCHY_INTEGRATION_ISO=$(realpath "$ISO")
+export ARCH_DEPLOY_INTEGRATION_ISO
+ARCH_DEPLOY_INTEGRATION_ISO=$(realpath "$ISO")
 
 # The install phase runs in this process; scenarios run in their own so each
 # gets its own VM lifecycle, cleanup trap, and run directory.

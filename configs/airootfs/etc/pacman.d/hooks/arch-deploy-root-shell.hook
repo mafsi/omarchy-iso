@@ -2,7 +2,7 @@
 #
 # Mirror omarchy-settings' /etc/skel shell defaults into /root so the live ISO
 # console has the same bashrc, starship prompt, and aliases as an installed
-# Omarchy system. Fires during airootfs pacstrap (when omarchy-settings is
+# arch-deploy system. Fires during airootfs pacstrap (when omarchy-settings is
 # installed); the "remove from airootfs" magic string causes
 # zzzz99-remove-custom-hooks-from-airootfs.hook to delete this file before
 # the squashfs is built, so no runtime hook remains.

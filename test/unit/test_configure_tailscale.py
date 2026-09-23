@@ -15,7 +15,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "configs/airootfs/usr/share/omarchy-iso"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "configs/airootfs/usr/share/arch-deploy"))
 
 # phases_impl imports the archinstall adapter at module scope, which pulls in
 # the archinstall library that only exists on the live ISO. configure_tailscale
@@ -74,7 +74,7 @@ class ConfigureTailscaleTest(unittest.TestCase):
         return self.target / "etc" / "tailscale" / "authkey"
 
     def unit(self):
-        return self.target / "etc" / "systemd" / "system" / "omarchy-tailscale-join.service"
+        return self.target / "etc" / "systemd" / "system" / "arch-deploy-tailscale-join.service"
 
     def chrooted(self, program):
         return [cmd for cmd in self.calls if cmd[:2] == ["arch-chroot", str(self.target)] and cmd[2] == program]
@@ -107,7 +107,7 @@ class ConfigureTailscaleTest(unittest.TestCase):
         self.assertIn(
             "ExecStart=/usr/bin/sh -c 'until tailscale up --auth-key file:/etc/tailscale/authkey;"
             " do sleep 15; done; rm -f /etc/tailscale/authkey;"
-            " systemctl disable omarchy-tailscale-join.service'",
+            " systemctl disable arch-deploy-tailscale-join.service'",
             text,
         )
 
@@ -129,7 +129,7 @@ class ConfigureTailscaleTest(unittest.TestCase):
         self.configure(authkey="tskey-auth-kFAKEKEY\n")
         self.assertEqual(self.chrooted("systemctl"), [
             ["arch-chroot", str(self.target), "systemctl", "enable",
-             "tailscaled.service", "omarchy-tailscale-join.service"],
+             "tailscaled.service", "arch-deploy-tailscale-join.service"],
         ])
 
     def test_allows_tailnet_traffic_through_ufw_despite_chroot_exit_status(self):

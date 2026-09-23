@@ -18,7 +18,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "configs/airootfs/usr/share/omarchy-iso"))
+sys.path.insert(0, str(ROOT / "configs/airootfs/usr/share/arch-deploy"))
 
 # phases_impl imports the archinstall adapter at module scope, which pulls in
 # the archinstall library that only exists on the live ISO.
@@ -38,7 +38,7 @@ EFIBOOTMGR_OUTPUT = (
     b"Timeout: 0 seconds\n"
     b"BootOrder: 2001,0003,0000\n"
     b"Boot0000* Notebook Hard Drive\tBBS(HD,\x80\x7f\xff\x04\xe0\x7f,)\n"
-    b"Boot0003* Omarchy\tHD(1,GPT,0d9c9d4f)/File(\\EFI\\limine\\BOOTX64.EFI)\n"
+    b"Boot0003* arch-deploy\tHD(1,GPT,0d9c9d4f)/File(\\EFI\\limine\\BOOTX64.EFI)\n"
     b"Boot2001* USB Drive (UEFI)\tRC\n"
 )
 
@@ -83,8 +83,8 @@ class CommandCaptureTest(unittest.TestCase):
         )
 
     def test_undecodable_bytes_are_replaced_rather_than_raised(self):
-        self.fake_command("omarchy-not-utf8", b"before\x80after\n")
-        self.assertEqual(capture(["omarchy-not-utf8"]).stdout, "before�after\n")
+        self.fake_command("arch-deploy-not-utf8", b"before\x80after\n")
+        self.assertEqual(capture(["arch-deploy-not-utf8"]).stdout, "before�after\n")
 
     def test_efibootmgr_entries_parse_around_a_legacy_bbs_entry(self):
         self.fake_command("efibootmgr", EFIBOOTMGR_OUTPUT)
@@ -92,7 +92,7 @@ class CommandCaptureTest(unittest.TestCase):
         state = phases_impl._read_efibootmgr()
 
         self.assertEqual(state["order"], ["2001", "0003", "0000"])
-        self.assertEqual(phases_impl._find_label_entries(state["entries"], "Omarchy"), ["0003"])
+        self.assertEqual(phases_impl._find_label_entries(state["entries"], "arch-deploy"), ["0003"])
         self.assertTrue(state["entries"]["0000"].startswith("Notebook Hard Drive"))
 
     def test_a_mangled_identifier_stops_the_install_rather_than_reaching_fstab(self):
@@ -111,7 +111,7 @@ class CommandCaptureTest(unittest.TestCase):
         # under it; a replaced byte must stop the phase before that, not turn
         # into an opaque mount failure.
         self.fake_findmnt(source=b"/dev/sda\xe02[/@]")
-        ctx = types.SimpleNamespace(target=Path("/mnt"), state_dir=Path("/run/omarchy"))
+        ctx = types.SimpleNamespace(target=Path("/mnt"), state_dir=Path("/run/arch-deploy"))
 
         with mock.patch.object(phases_impl, "info"), self.assertRaises(RuntimeError) as raised:
             phases_impl.create_factory_snapshot(ctx)

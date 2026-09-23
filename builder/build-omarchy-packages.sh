@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Omarchy packages from mounted source (/omarchy-source + /omarchy-pkgs)
+# Build arch-deploy packages from mounted source (/omarchy-source + /omarchy-pkgs)
 # and place the resulting .pkg.tar.zst files in the offline mirror.
 
 set -e
@@ -11,28 +11,28 @@ if [[ -z $offline_mirror_dir ]]; then
 fi
 
 if [[ ! -d /omarchy-source ]]; then
-  echo "ERROR: /omarchy-source not mounted (pass --local-source or set OMARCHY_SOURCE_PATH)" >&2
+  echo "ERROR: /omarchy-source not mounted (pass --local-source or set ARCH_DEPLOY_SOURCE_PATH)" >&2
   exit 1
 fi
 if [[ ! -d /omarchy-pkgs ]]; then
-  echo "ERROR: /omarchy-pkgs not mounted (set OMARCHY_PKGS_PATH or place ../omarchy-pkgs)" >&2
+  echo "ERROR: /omarchy-pkgs not mounted (set ARCH_DEPLOY_PKGS_PATH or place ../omarchy-pkgs)" >&2
   exit 1
 fi
 
-work_dir=/tmp/omarchy-pkg-build
+work_dir=/tmp/arch-deploy-pkg-build
 rm -rf "$work_dir"
 mkdir -p "$work_dir"
 
 if ! id builder &>/dev/null; then
   useradd -m -s /bin/bash builder
 fi
-echo 'builder ALL=(ALL) NOPASSWD: /usr/bin/pacman' > /etc/sudoers.d/99-omarchy-pkg-builder
-chmod 440 /etc/sudoers.d/99-omarchy-pkg-builder
+echo 'builder ALL=(ALL) NOPASSWD: /usr/bin/pacman' > /etc/sudoers.d/99-arch-deploy-pkg-builder
+chmod 440 /etc/sudoers.d/99-arch-deploy-pkg-builder
 chown builder:builder "$work_dir"
 
 pacman -Sy --noconfirm
 
-: "${OMARCHY_RUNTIME_PACKAGE:=omarchy-dev}"
+: "${OMARCHY_RUNTIME_PACKAGE:=arch-deploy-dev}"
 : "${OMARCHY_SETTINGS_PACKAGE:=omarchy-settings-dev}"
 : "${OMARCHY_NVIM_PACKAGE:=omarchy-nvim}"
 
@@ -64,7 +64,7 @@ for pkg in "${packages[@]}"; do
   su builder -c "
     cd '$pkg_work' &&
     PKGDEST='$work_dir' \
-    OMARCHY_SRC=/omarchy-source \
+    ARCH_DEPLOY_SRC=/omarchy-source \
     makepkg --noconfirm --skippgpcheck --skipchecksums --nodeps -f
   "
 done
@@ -81,5 +81,5 @@ for package_file in "$work_dir"/*.pkg.tar.zst; do
 done
 
 echo
-echo "Built Omarchy packages, placed in $offline_mirror_dir:"
-ls "$offline_mirror_dir"/omarchy*.pkg.tar.zst | sed 's|^|  |'
+echo "Built arch-deploy packages, placed in $offline_mirror_dir:"
+ls "$offline_mirror_dir"/arch-deploy*.pkg.tar.zst | sed 's|^|  |'

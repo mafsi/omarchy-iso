@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Foreground Omarchy ISO install UI supervisor.
+# Foreground arch-deploy install UI supervisor.
 #
 # This process is the only owner of the visible install UI. It launches the
 # actual installer as a non-interactive child, sends child output to the support
@@ -21,13 +21,13 @@ shift
 (( $# > 0 )) || usage
 INSTALL_CMD=("$@")
 
-TTY_PATH="${OMARCHY_DASHBOARD_TTY:-/dev/tty}"
+TTY_PATH="${ARCH_DEPLOY_DASHBOARD_TTY:-/dev/tty}"
 LOGO_PATH="${OMARCHY_PATH:-/usr/share/omarchy}/logo.txt"
 
 # Autoinstall has no one at the keyboard, and every prompt this dashboard owns
 # reads from the TTY, so each would hang forever. Suppress them here rather than
 # in the scripts they live in: this process is the only owner of the visible UI.
-interactive() { [[ ${OMARCHY_UI_INTERACTIVE:-} != "no" ]]; }
+interactive() { [[ ${ARCH_DEPLOY_UI_INTERACTIVE:-} != "no" ]]; }
 
 CSI=$'\033['
 RESET="${CSI}0m"
@@ -54,7 +54,7 @@ child_pid=""
 child_pgid=""
 
 tips=(
-  "Super + Space opens the Omarchy menu for apps, settings, and more"
+  "Super + Space opens the arch-deploy menu for apps, settings, and more"
   "Super + K shows all the key bindings"
   "Super is the Windows or command key on your keyboard"
   "Use Xournal++ to sign PDFs"
@@ -65,13 +65,13 @@ tips=(
   "Super + Ctrl + Print grabs text off the screen with OCR"
   "Print takes a screenshot, Alt + Print records the screen"
   "Set a reminder with Super + Ctrl + R"
-  "Switch themes from Style > Theme in the Omarchy menu"
+  "Switch themes from Style > Theme in the arch-deploy menu"
   "Double-click the menu bar to make it transparent"
   "Run a full Windows VM via Install > Windows in the menu"
   "Super + Ctrl + V opens the clipboard manager"
   "Super + 1 through 0 switches workspaces, add Shift to bring the window"
   "Super + Print picks a color from anywhere on screen"
-  "Keep the system fresh with Update in the Omarchy menu"
+  "Keep the system fresh with Update in the arch-deploy menu"
 )
 
 cleanup() {
@@ -180,7 +180,7 @@ FINISH_TOP_ROW=2
 # reachable values and stops moving. No give-up predicate: two discontinuous
 # curves behind a monotonic clamp freeze. With no signal the floor alone still
 # finishes the band.
-EXPECTED_PACKAGES_FILE="${OMARCHY_EXPECTED_PACKAGES_FILE:-/usr/share/omarchy-iso/expected-packages}"
+EXPECTED_PACKAGES_FILE="${ARCH_DEPLOY_EXPECTED_PACKAGES_FILE:-/usr/share/arch-deploy/expected-packages}"
 PKG_TOTAL=0
 if [[ -r $EXPECTED_PACKAGES_FILE ]]; then
   read -r PKG_TOTAL _ <"$EXPECTED_PACKAGES_FILE" 2>/dev/null || PKG_TOTAL=0
@@ -259,7 +259,7 @@ render_logo() {
       printf '\r%s%s%b%s%b\n' "$CLEAR_LINE" "$pad" "$GREEN" "$line" "$RESET"
     done <"$LOGO_PATH"
   else
-    center "${GREEN}Omarchy${RESET}" "$CONTENT_WIDTH"
+    center "${GREEN}arch-deploy${RESET}" "$CONTENT_WIDTH"
   fi
 }
 
@@ -337,7 +337,7 @@ install_progress() {
     "Starting installation")      lo=10  hi=25   tau=5   ;;
     "Preparing live environment") lo=25  hi=50   tau=25  ;;
     "Preparing install target")   lo=50  hi=65   tau=20  ;;
-    "Installing Arch + Omarchy")  lo=65  hi=700  tau=150 pkg_signal=1 ;;
+    "Installing Arch + arch-deploy")  lo=65  hi=700  tau=150 pkg_signal=1 ;;
     "Configuring hibernation")    lo=700 hi=720  tau=10  ;;
     "Configuring system")         lo=720 hi=850  tau=120 ;;
     "Staging provisioning")          lo=850 hi=855  tau=5   ;;
@@ -452,7 +452,7 @@ render_dynamic() {
   LAST_PM=$pm
 
   printf '%s%d;1H' "$CSI" "$DYNAMIC_ROW"
-  center "Installing Omarchy" "$CONTENT_WIDTH"
+  center "Installing arch-deploy" "$CONTENT_WIDTH"
   blank_line
   line_at "$CONTENT_WIDTH" $(( (CONTENT_WIDTH - 34) / 2 )) ""
   progress_bar "$pm" 34
@@ -479,9 +479,9 @@ install_duration() {
     [[ -n $duration ]] && { printf '%s' "$duration"; return 0; }
   fi
 
-  for path in /mnt/var/log/omarchy-install.log "$LOG_FILE"; do
+  for path in /mnt/var/log/arch-deploy-install.log "$LOG_FILE"; do
     [[ -f $path ]] || continue
-    for prefix in Total Omarchy; do
+    for prefix in Total arch-deploy; do
       line="$(grep "^$prefix:" "$path" 2>/dev/null | tail -n 1 || true)"
       [[ -n $line ]] || continue
       duration="${line#*:}"
@@ -511,7 +511,7 @@ render_finish() {
     printf '%s%s%s%d;1H' "$SHOW_CURSOR" "$CLEAR" "$CSI" "$FINISH_TOP_ROW"
     render_logo
     blank_line
-    center "Installed Omarchy in ${duration}" "$CONTENT_WIDTH"
+    center "Installed arch-deploy in ${duration}" "$CONTENT_WIDTH"
     blank_line
   } >"$TTY_PATH"
 
@@ -541,7 +541,7 @@ render_finish() {
 reboot_prompt() {
   local prompt_pad
 
-  # Nobody to confirm; the OMARCHY_UI_AUTO_REBOOT check at the call site still
+  # Nobody to confirm; the ARCH_DEPLOY_UI_AUTO_REBOOT check at the call site still
   # applies, so setting both stops on the finish screen without a keyboard.
   interactive || return 0
 
@@ -583,10 +583,10 @@ render_failure_log_tail() {
   width=$((CONTENT_WIDTH - 4))
   (( width < 40 )) && width=40
 
-  tail_log="${OMARCHY_FAILURE_TAIL_LOG:-}"
+  tail_log="${ARCH_DEPLOY_FAILURE_TAIL_LOG:-}"
   if [[ -z $tail_log ]]; then
-    if [[ -f /mnt/var/log/omarchy-install.log ]]; then
-      tail_log=/mnt/var/log/omarchy-install.log
+    if [[ -f /mnt/var/log/arch-deploy-install.log ]]; then
+      tail_log=/mnt/var/log/arch-deploy-install.log
     else
       tail_log="$LOG_FILE"
     fi
@@ -630,7 +630,7 @@ upload_failure_log() {
     {
       echo "No log uploader is available in this environment."
       echo "Install log: $LOG_FILE"
-      [[ -f /mnt/var/log/omarchy-install.log ]] && echo "Target log: /mnt/var/log/omarchy-install.log"
+      [[ -f /mnt/var/log/arch-deploy-install.log ]] && echo "Target log: /mnt/var/log/arch-deploy-install.log"
     } >"$TTY_PATH"
   fi
   prompt_enter
@@ -652,10 +652,10 @@ view_failure_log() {
 diagnose_media() {
   local logs=("$LOG_FILE")
 
-  [[ -f /mnt/var/log/omarchy-install.log ]] && logs+=(/mnt/var/log/omarchy-install.log)
-  [[ -n ${OMARCHY_FAILURE_TAIL_LOG:-} ]] && logs+=("$OMARCHY_FAILURE_TAIL_LOG")
+  [[ -f /mnt/var/log/arch-deploy-install.log ]] && logs+=(/mnt/var/log/arch-deploy-install.log)
+  [[ -n ${ARCH_DEPLOY_FAILURE_TAIL_LOG:-} ]] && logs+=("$ARCH_DEPLOY_FAILURE_TAIL_LOG")
 
-  omarchy-install-diagnose-media "${logs[@]}" 2>/dev/null
+  arch-deploy-install-diagnose-media "${logs[@]}" 2>/dev/null
 }
 
 # Rows the diagnosis occupies, its leading blank included.
@@ -696,7 +696,7 @@ render_failure() {
   blank_line
   render_logo
   blank_line
-  center "${RED}Omarchy installation stopped${RESET}" "$CONTENT_WIDTH"
+  center "${RED}arch-deploy installation stopped${RESET}" "$CONTENT_WIDTH"
   center "Installer exited with status $status" "$CONTENT_WIDTH"
 
   render_media_diagnosis "$media_diagnosis"
@@ -712,14 +712,14 @@ render_failure() {
   blank_line
   render_failure_log_tail "$(media_diagnosis_rows "$media_diagnosis")"
   blank_line
-  center "${DIM}Get help at https://omarchy.org/discord${RESET}" "$CONTENT_WIDTH"
+  center "${DIM}Get help at https://arch-deploy.org/discord${RESET}" "$CONTENT_WIDTH"
   blank_line
 }
 
 failure_menu() {
   local choice uploader
 
-  [[ ${OMARCHY_UI_FAILURE_ACTION:-} == "exit" ]] && return 0
+  [[ ${ARCH_DEPLOY_UI_FAILURE_ACTION:-} == "exit" ]] && return 0
   # The failure screen and log tail have already rendered; exit with the
   # installer's status instead of blocking on a menu nobody can answer.
   interactive || return 0
@@ -771,10 +771,10 @@ failure_menu() {
 }
 
 sanitize_child_output() {
-  # Archinstall is only a library subsystem in Omarchy's installer. Its own
+  # Archinstall is only a library subsystem in arch-deploy's installer. Its own
   # post-install success/reboot banner can be buffered until process exit and
-  # appear after an Omarchy failure, which makes the unified log contradictory.
-  # Keep that third-party banner out of Omarchy's support log; the raw
+  # appear after an arch-deploy failure, which makes the unified log contradictory.
+  # Keep that third-party banner out of arch-deploy's support log; the raw
   # archinstall log is still uploaded separately by omarchy-upload-log.
   sed -u \
     -e $'s/\x1b\\[[0-9;?]*[A-Za-z]//g' \
@@ -856,11 +856,11 @@ fi
 
 # Deferred-provisioning installs finish silently and reboot on their own — the
 # owner completes setup (and sees the send-off) at first boot, so the "Installed
-# Omarchy in ..." celebration and the Reboot Now prompt belong to a direct
+# arch-deploy in ..." celebration and the Reboot Now prompt belong to a direct
 # install only.
-if [[ ${OMARCHY_UI_DEFER_PROVISIONING:-} == "yes" ]]; then
+if [[ ${ARCH_DEPLOY_UI_DEFER_PROVISIONING:-} == "yes" ]]; then
   printf '%s' "$CLEAR" >"$TTY_PATH" 2>/dev/null || true
-  [[ ${OMARCHY_UI_AUTO_REBOOT:-} == "no" ]] && exit 0
+  [[ ${ARCH_DEPLOY_UI_AUTO_REBOOT:-} == "no" ]] && exit 0
   reboot 2>/dev/null || systemctl reboot 2>/dev/null || true
   exit 0
 fi
@@ -878,7 +878,7 @@ if (( finish_render_status != 0 )); then
 fi
 
 if reboot_prompt; then
-  if [[ ${OMARCHY_UI_AUTO_REBOOT:-} == "no" ]]; then
+  if [[ ${ARCH_DEPLOY_UI_AUTO_REBOOT:-} == "no" ]]; then
     exit 0
   fi
   printf '%s' "$CLEAR" >"$TTY_PATH" 2>/dev/null || true

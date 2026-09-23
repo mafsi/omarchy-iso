@@ -8,8 +8,8 @@ Phase ordering (full-disk and protected/pre-mounted):
     prepare_install_target → verify pre-mounted target/ESP when the JSON uses
                              pre_mounted_config; no-op for full-disk installs
     arch_install_system    → one archinstall flow for partition/mount-or-use,
-                             base install, early Omarchy packages, Limine setup,
-                             useradd, runtime Omarchy packages, fstab
+                             base install, early arch-deploy packages, Limine setup,
+                             useradd, runtime arch-deploy packages, fstab
     configure_hibernation  → root-owned swap/resume drop-ins
     run_system_finalizer   → arch-chroot root omarchy-apply-system, including Snapper
     finalize_limine_boot   → final Limine config/UKI build after hardware drop-ins
@@ -43,10 +43,10 @@ from .ui import error, info
 # stable package names, while dev/local-source ISOs install the dev package
 # names explicitly instead of relying on provides=omarchy resolution.
 def _iso_ref() -> str:
-    if ref := os.environ.get("OMARCHY_ISO_REF"):
+    if ref := os.environ.get("ARCH_DEPLOY_REF"):
         return ref.strip()
 
-    ref_file = Path("/root/omarchy_iso_ref")
+    ref_file = Path("/root/arch_deploy_ref")
     if ref_file.exists():
         try:
             return ref_file.read_text().strip()
@@ -59,13 +59,13 @@ def _iso_ref() -> str:
 def _default_package_targets() -> dict[str, str]:
     if _iso_ref() in {"dev", "local"}:
         return {
-            "runtime": "omarchy-dev",
+            "runtime": "arch-deploy-dev",
             "settings": "omarchy-settings-dev",
             "nvim": "omarchy-nvim",
         }
 
     return {
-        "runtime": "omarchy",
+        "runtime": "arch-deploy",
         "settings": "omarchy-settings",
         "nvim": "omarchy-nvim",
     }
@@ -74,7 +74,7 @@ def _default_package_targets() -> dict[str, str]:
 def _package_targets() -> dict[str, str]:
     targets = _default_package_targets()
 
-    targets_file = Path("/usr/share/omarchy-iso/package-targets")
+    targets_file = Path("/usr/share/arch-deploy/package-targets")
     if targets_file.exists():
         try:
             for raw in targets_file.read_text().splitlines():
@@ -105,22 +105,22 @@ def _package_targets() -> dict[str, str]:
     return targets
 
 
-def _omarchy_runtime_package() -> str:
+def _arch_deploy_runtime_package() -> str:
     return _package_targets()["runtime"]
 
 
-def _omarchy_settings_package() -> str:
+def _arch_deploy_settings_package() -> str:
     return _package_targets()["settings"]
 
 
-def _omarchy_nvim_package() -> str:
+def _arch_deploy_nvim_package() -> str:
     return _package_targets()["nvim"]
 
 
 # Packages installed BEFORE useradd. The selected omarchy-settings package and
 # omarchy-nvim populate /etc/skel so the user's home gets seeded correctly, and
 # omarchy-settings also ships the limine/snapper configs. Target-side setup
-# commands are installed later by the selected Omarchy runtime package and
+# commands are installed later by the selected arch-deploy runtime package and
 # executed in chroot.
 EARLY_BOOTSTRAP_BASE_PACKAGES = [
     "base-devel",
@@ -142,11 +142,11 @@ EARLY_LUAROCKS_PACKAGES = [
 
 
 def _early_bootstrap_packages() -> list[str]:
-    return [*EARLY_BOOTSTRAP_BASE_PACKAGES, _omarchy_settings_package()]
+    return [*EARLY_BOOTSTRAP_BASE_PACKAGES, _arch_deploy_settings_package()]
 
 
 def _early_user_seed_packages() -> list[str]:
-    return [_omarchy_nvim_package()]
+    return [_arch_deploy_nvim_package()]
 
 
 def _early_packages() -> list[str]:
@@ -171,7 +171,7 @@ def _early_packages() -> list[str]:
 # it here stalled installs at 5% while it ground away in the background, and
 # racing it failed pacstrap with "required key missing from keyring".
 #
-# archinstall is patched in the wrapper (omarchy-iso-install) BEFORE Python
+# archinstall is patched in the wrapper (arch-deploy-install) BEFORE Python
 # imports it, so no patching happens here.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -182,7 +182,7 @@ def prepare_live(ctx: InstallContext) -> None:
         disk = _install_disk(ctx)
         if disk:
             info(f"› cleaning up holders on install disk: {disk}")
-            subprocess.run(["omarchy-iso-cleanup-disk", disk], check=True)
+            subprocess.run(["arch-deploy-cleanup-disk", disk], check=True)
 
     info("› loading configurator output")
     ctx.state["arch_config_handler"] = arch.load_arch_config(
@@ -203,8 +203,8 @@ def _install_disk(ctx: InstallContext) -> str | None:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # arch_install_system: everything inside a single Installer context manager.
-# Reorders guided.py's perform_installation() so early Omarchy packages install
-# before user creation and before our Omarchy-owned Limine setup copies files
+# Reorders guided.py's perform_installation() so early arch-deploy packages install
+# before user creation and before our arch-deploy-owned Limine setup copies files
 # from the target's limine package.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -218,7 +218,7 @@ def arch_install_system(ctx: InstallContext) -> None:
 
     The phase sequence is the same for full-disk and protected installs. The
     JSON decides whether archinstall should create/mount a disk layout or use
-    a pre-mounted target, and Omarchy derives boot/fstab details from that same
+    a pre-mounted target, and arch-deploy derives boot/fstab details from that same
     input.
     """
     handler = ctx.state["arch_config_handler"]
@@ -295,7 +295,7 @@ def arch_install_system(ctx: InstallContext) -> None:
                 info("› installing archinstall application selections")
                 arch.install_applications(installer, config)
 
-            info("› installing Omarchy runtime + omarchy-base.packages")
+            info("› installing arch-deploy runtime + omarchy-base.packages")
             installer.add_additional_packages(_runtime_package_list(ctx))
 
             # Tailscale is bundled in the offline mirror but only installed
@@ -327,13 +327,13 @@ def _configure_limine_boot(ctx: InstallContext, installer, config) -> None:
     if not arch.bootloader_enabled(config):
         return
     if not arch.is_limine(config):
-        raise RuntimeError("Omarchy installs only support Limine bootloader setup")
+        raise RuntimeError("arch-deploy installs only support Limine bootloader setup")
 
     info("› installing bootloader (Limine)")
     if arch.is_pre_mount(config):
         _install_pre_mounted_limine(ctx)
     else:
-        _install_limine_omarchy(ctx, installer, config)
+        _install_limine_arch_deploy(ctx, installer, config)
 
     info("› writing Limine config")
     if arch.is_pre_mount(config):
@@ -342,7 +342,7 @@ def _configure_limine_boot(ctx: InstallContext, installer, config) -> None:
         _write_limine_defaults_from_config(ctx, installer, config)
 
 
-def _install_limine_omarchy(ctx: InstallContext, installer, config) -> None:
+def _install_limine_arch_deploy(ctx: InstallContext, installer, config) -> None:
     boot_partition = installer._get_boot_partition()
     efi_partition = installer._get_efi_partition()
     root = installer._get_root()
@@ -381,7 +381,7 @@ def _install_pre_mounted_limine(ctx: InstallContext) -> None:
     storage = _storage_intent(ctx)
     esp_device = storage.get("esp_device")
     if not esp_device:
-        raise RuntimeError("omarchy_install.storage.esp_device missing")
+        raise RuntimeError("arch_deploy_install.storage.esp_device missing")
 
     pre_state = _read_efibootmgr()
     windows_before = _find_label_entries(pre_state["entries"], "Windows")
@@ -515,14 +515,14 @@ def _write_limine_pacman_hook(target: Path, hook_command: str) -> None:
         Target = limine
 
         [Action]
-        Description = Deploying Omarchy Limine after upgrade...
+        Description = Deploying arch-deploy Limine after upgrade...
         When = PostTransaction
         Exec = /bin/sh -c "{hook_command}"
         """
     )
     hooks_dir = target / "etc" / "pacman.d" / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
-    (hooks_dir / "99-omarchy-limine.hook").write_text(hook_contents)
+    (hooks_dir / "99-arch-deploy-limine.hook").write_text(hook_contents)
 
 
 def _write_limine_defaults_from_config(ctx: InstallContext, installer, config) -> None:
@@ -580,10 +580,10 @@ def _installer_esp_mount(installer) -> str:
 
 def _limine_template(ctx: InstallContext, filename: str) -> Path:
     candidates = [
-        ctx.target / "usr" / "share" / "omarchy" / "install" / "assets" / "limine" / filename,
-        ctx.target / "usr" / "share" / "omarchy" / "default" / "limine" / filename,
-        ctx.omarchy_path / "install" / "assets" / "limine" / filename,
-        ctx.omarchy_path / "default" / "limine" / filename,
+        ctx.target / "usr" / "share" / "arch-deploy" / "install" / "assets" / "limine" / filename,
+        ctx.target / "usr" / "share" / "arch-deploy" / "default" / "limine" / filename,
+        ctx.arch_deploy_path / "install" / "assets" / "limine" / filename,
+        ctx.arch_deploy_path / "default" / "limine" / filename,
     ]
     for candidate in candidates:
         if candidate.exists():
@@ -621,7 +621,7 @@ def _drop_archinstall_zram_conf(ctx: InstallContext) -> None:
     """Remove the zram-generator.conf archinstall's setup_swap writes directly.
 
     omarchy-settings ships the tuning as a vendor drop-in at
-    /usr/lib/systemd/zram-generator.conf.d/90-omarchy.conf, which outranks the
+    /usr/lib/systemd/zram-generator.conf.d/90-arch-deploy.conf, which outranks the
     main config file. setup_swap's generic /etc copy decides nothing and only
     implies /etc is where zram gets configured, so drop it — we still want the
     zram-generator package and service that setup_swap installs.
@@ -634,7 +634,7 @@ def _install_early_packages(installer) -> None:
     bootstrap_packages = _early_bootstrap_packages()
     user_seed_packages = _early_user_seed_packages()
 
-    info(f"› installing early Omarchy packages: {', '.join(bootstrap_packages)}")
+    info(f"› installing early arch-deploy packages: {', '.join(bootstrap_packages)}")
     installer.add_additional_packages(bootstrap_packages)
 
     info(f"› installing LuaRocks prerequisites: {', '.join(EARLY_LUAROCKS_PACKAGES)}")
@@ -654,7 +654,7 @@ def _mount_offline_package_cache(ctx: InstallContext) -> None:
     duration of package installation. It is unmounted before genfstab so the
     live-only bind can never leak into the installed system's fstab.
     """
-    source = Path("/var/cache/omarchy/mirror/offline")
+    source = Path("/var/cache/arch-deploy/mirror/offline")
     target = ctx.target / "var" / "cache" / "pacman" / "pkg"
     if not source.is_dir():
         raise RuntimeError(f"offline package cache missing: {source}")
@@ -701,7 +701,7 @@ def _mask_mkinitcpio_pacman_hooks(
     hooks_dir.mkdir(parents=True, exist_ok=True)
     for name in names:
         path = hooks_dir / name
-        backup = hooks_dir / f"{name}.omarchy-backup"
+        backup = hooks_dir / f"{name}.arch-deploy-backup"
         if _is_devnull_symlink(path):
             continue
         if path.exists() or path.is_symlink():
@@ -718,7 +718,7 @@ def _unmask_mkinitcpio_pacman_hooks(
     hooks_dir = root / "etc/pacman.d/hooks"
     for name in names:
         path = hooks_dir / name
-        backup = hooks_dir / f"{name}.omarchy-backup"
+        backup = hooks_dir / f"{name}.arch-deploy-backup"
         try:
             if _is_devnull_symlink(path):
                 path.unlink()
@@ -729,15 +729,15 @@ def _unmask_mkinitcpio_pacman_hooks(
 
 
 def _runtime_package_list(ctx: InstallContext) -> list[str]:
-    """Selected Omarchy runtime package + every package in the ISO-bundled
+    """Selected arch-deploy runtime package + every package in the ISO-bundled
     base package list that isn't already installed early."""
-    base_pkgs_file = Path("/usr/share/omarchy-iso/omarchy-base.packages")
-    pkgs = [_omarchy_runtime_package()]
+    base_pkgs_file = Path("/usr/share/arch-deploy/omarchy-base.packages")
+    pkgs = [_arch_deploy_runtime_package()]
     already_installed = set(_early_packages()) | {
-        _omarchy_runtime_package(),
-        _omarchy_settings_package(),
-        _omarchy_nvim_package(),
-        "omarchy",
+        _arch_deploy_runtime_package(),
+        _arch_deploy_settings_package(),
+        _arch_deploy_nvim_package(),
+        "arch-deploy",
         "omarchy-settings",
         "omarchy-nvim",
     }
@@ -751,13 +751,13 @@ def _runtime_package_list(ctx: InstallContext) -> list[str]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Install intent helpers: normalize the Omarchy-specific part of the
+# Install intent helpers: normalize the arch-deploy-specific part of the
 # configurator JSON so full-disk and pre-mounted installs feed the same boot
 # and target setup code.
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _boot_intent(ctx: InstallContext) -> dict:
-    boot = dict(ctx.omarchy_install.get("boot") or {})
+    boot = dict(ctx.arch_deploy_install.get("boot") or {})
     boot.setdefault("esp_mount", "/boot")
     boot.setdefault("esp_path", "/EFI/limine")
     boot.setdefault("efi_binary", "limine_x64.efi")
@@ -766,7 +766,7 @@ def _boot_intent(ctx: InstallContext) -> dict:
 
 
 def _storage_intent(ctx: InstallContext) -> dict:
-    return dict(ctx.omarchy_install.get("storage") or {})
+    return dict(ctx.arch_deploy_install.get("storage") or {})
 
 
 def verify_protected_mounts(ctx: InstallContext) -> None:
@@ -781,7 +781,7 @@ def verify_protected_mounts(ctx: InstallContext) -> None:
     for key in ("esp_device", "root_device"):
         device = storage.get(key)
         if not device:
-            raise RuntimeError(f"protected mode: omarchy_install.storage.{key} missing")
+            raise RuntimeError(f"protected mode: arch_deploy_install.storage.{key} missing")
         if not Path(device).exists():
             raise RuntimeError(f"protected mode: {key} {device} does not exist")
 
@@ -808,7 +808,7 @@ def _is_mountpoint(path: Path) -> bool:
 def _btrfs_root_device(ctx: InstallContext) -> str:
     storage = _storage_intent(ctx)
     if storage.get("luks_uuid"):
-        return storage.get("root_mapper") or "/dev/mapper/omarchy_root"
+        return storage.get("root_mapper") or "/dev/mapper/arch_deploy_root"
     return storage["root_device"]
 
 
@@ -845,7 +845,7 @@ def _write_pre_mounted_fstab(ctx: InstallContext) -> None:
 
     btrfs_opts = "noatime,compress=zstd,subvol="
     lines = [
-        "# /etc/fstab — generated by Omarchy ISO",
+        "# /etc/fstab — generated by arch-deploy",
         "# <device>  <mount>  <fs>  <options>  <dump>  <pass>",
         f"UUID={btrfs_uuid}  /                      btrfs  {btrfs_opts}@       0 0",
         f"UUID={btrfs_uuid}  /home                  btrfs  {btrfs_opts}@home   0 0",
@@ -863,15 +863,15 @@ def _write_pre_mounted_crypttab(ctx: InstallContext) -> None:
     if not luks_uuid:
         return
     crypttab = ctx.target / "etc" / "crypttab.initramfs"
-    crypttab.write_text(f"omarchy_root  UUID={luks_uuid}  none  luks,discard\n")
+    crypttab.write_text(f"arch_deploy_root  UUID={luks_uuid}  none  luks,discard\n")
 
 
 def _build_pre_mounted_cmdline(ctx: InstallContext, btrfs_uuid: str) -> str:
     storage = _storage_intent(ctx)
     if storage.get("luks_uuid"):
-        root_mapper = storage.get("root_mapper") or "/dev/mapper/omarchy_root"
+        root_mapper = storage.get("root_mapper") or "/dev/mapper/arch_deploy_root"
         return (
-            f"cryptdevice=UUID={storage['luks_uuid']}:omarchy_root "
+            f"cryptdevice=UUID={storage['luks_uuid']}:arch_deploy_root "
             f"root={root_mapper} zswap.enabled=0 "
             "rootflags=subvol=@ rw rootfstype=btrfs"
         )
@@ -950,13 +950,13 @@ def configure_hibernation(ctx: InstallContext) -> None:
         "arch-chroot", str(ctx.target),
         "env",
         "OMARCHY_PATH=/usr/share/omarchy",
-        "OMARCHY_INSTALL_LOG_FILE=/var/log/omarchy-install.log",
+        "ARCH_DEPLOY_INSTALL_LOG_FILE=/var/log/arch-deploy-install.log",
         "/usr/bin/omarchy-hibernation-setup", "--force", "--no-rebuild",
     ], check=True)
 
 
 def _install_debug_enabled() -> bool:
-    return os.environ.get("OMARCHY_INSTALL_DEBUG") == "1" or Path("/usr/share/omarchy-iso/install-debug").exists()
+    return os.environ.get("ARCH_DEPLOY_INSTALL_DEBUG") == "1" or Path("/usr/share/arch-deploy/install-debug").exists()
 
 
 def _debug_log(ctx: InstallContext, message: str) -> None:
@@ -1015,7 +1015,7 @@ def _prepare_target_setup(ctx: InstallContext) -> None:
     shutil.copy("/etc/pacman.conf", str(ctx.target / "etc" / "pacman.conf"))
 
     bind_mounts = [
-        ("/var/cache/omarchy/mirror/offline", "/var/cache/omarchy/mirror/offline"),
+        ("/var/cache/arch-deploy/mirror/offline", "/var/cache/arch-deploy/mirror/offline"),
         ("/opt/packages", "/opt/packages"),
     ]
     ctx.state.setdefault("bind_mounts", [])
@@ -1032,20 +1032,20 @@ def _prepare_target_setup(ctx: InstallContext) -> None:
 
 
 def _ensure_finalizer_log_started(ctx: InstallContext) -> tuple[str, int]:
-    if "omarchy_start_time" not in ctx.state:
-        ctx.state["omarchy_start_epoch"] = int(time.time())
-        ctx.state["omarchy_start_time"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    if "arch_deploy_start_time" not in ctx.state:
+        ctx.state["arch_deploy_start_epoch"] = int(time.time())
+        ctx.state["arch_deploy_start_time"] = time.strftime("%Y-%m-%d %H:%M:%S")
 
     ctx.log_path.parent.mkdir(parents=True, exist_ok=True)
     ctx.log_path.touch(exist_ok=True)
     ctx.log_path.chmod(0o666)
 
-    if not ctx.state.get("omarchy_finalizer_header_written"):
+    if not ctx.state.get("arch_deploy_finalizer_header_written"):
         with ctx.log_path.open("a", encoding="utf-8") as log:
-            log.write(f"=== Omarchy Target Setup Started: {ctx.state['omarchy_start_time']} ===\n")
-        ctx.state["omarchy_finalizer_header_written"] = True
+            log.write(f"=== arch-deploy Target Setup Started: {ctx.state['arch_deploy_start_time']} ===\n")
+        ctx.state["arch_deploy_finalizer_header_written"] = True
 
-    return ctx.state["omarchy_start_time"], ctx.state["omarchy_start_epoch"]
+    return ctx.state["arch_deploy_start_time"], ctx.state["arch_deploy_start_epoch"]
 
 
 def _target_user_env(ctx: InstallContext, user: str) -> list[str]:
@@ -1073,9 +1073,9 @@ def _target_user_env(ctx: InstallContext, user: str) -> list[str]:
 
 def _run_target_setup_command(ctx: InstallContext, cmd: list[str], *, user: str | None = None) -> None:
     _prepare_target_setup(ctx)
-    omarchy_start_time, omarchy_start_epoch = _ensure_finalizer_log_started(ctx)
+    arch_deploy_start_time, arch_deploy_start_epoch = _ensure_finalizer_log_started(ctx)
 
-    target_log = ctx.target / "var" / "log" / "omarchy-install.log"
+    target_log = ctx.target / "var" / "log" / "arch-deploy-install.log"
     target_log.parent.mkdir(parents=True, exist_ok=True)
     target_log.touch(exist_ok=True)
     target_log.chmod(0o666)
@@ -1088,25 +1088,25 @@ def _run_target_setup_command(ctx: InstallContext, cmd: list[str], *, user: str 
         with ctx.log_path.open("a", encoding="utf-8") as log:
             log.write(f"[orchestrator] WARNING: failed to bind unified setup log: {exc}\n")
 
-    mirror_channel = _read_omarchy_mirror()
+    mirror_channel = _read_arch_deploy_mirror()
     env_extras = [
         "OMARCHY_PATH=/usr/share/omarchy",
         "OMARCHY_INSTALL=/usr/share/omarchy/install",
-        f"OMARCHY_INSTALL_USER={ctx.username}",
-        f"OMARCHY_START_TIME={omarchy_start_time}",
-        f"OMARCHY_START_EPOCH={omarchy_start_epoch}",
-        f"OMARCHY_USER_NAME={ctx.full_name}",
-        f"OMARCHY_USER_EMAIL={ctx.email}",
-        f"OMARCHY_MIRROR={mirror_channel}",
-        f"OMARCHY_ISO_REF={_iso_ref()}",
-        f"OMARCHY_RUNTIME_PACKAGE={_omarchy_runtime_package()}",
-        f"OMARCHY_SETTINGS_PACKAGE={_omarchy_settings_package()}",
-        f"OMARCHY_NVIM_PACKAGE={_omarchy_nvim_package()}",
-        "OMARCHY_INSTALL_LOG_FILE=/var/log/omarchy-install.log",
-        "OMARCHY_LOG_TO_STDOUT=1",
+        f"ARCH_DEPLOY_INSTALL_USER={ctx.username}",
+        f"ARCH_DEPLOY_START_TIME={arch_deploy_start_time}",
+        f"ARCH_DEPLOY_START_EPOCH={arch_deploy_start_epoch}",
+        f"ARCH_DEPLOY_USER_NAME={ctx.full_name}",
+        f"ARCH_DEPLOY_USER_EMAIL={ctx.email}",
+        f"ARCH_DEPLOY_MIRROR={mirror_channel}",
+        f"ARCH_DEPLOY_REF={_iso_ref()}",
+        f"OMARCHY_RUNTIME_PACKAGE={_arch_deploy_runtime_package()}",
+        f"OMARCHY_SETTINGS_PACKAGE={_arch_deploy_settings_package()}",
+        f"OMARCHY_NVIM_PACKAGE={_arch_deploy_nvim_package()}",
+        "ARCH_DEPLOY_INSTALL_LOG_FILE=/var/log/arch-deploy-install.log",
+        "ARCH_DEPLOY_LOG_TO_STDOUT=1",
     ]
     if _install_debug_enabled():
-        env_extras.append("OMARCHY_INSTALL_DEBUG=1")
+        env_extras.append("ARCH_DEPLOY_INSTALL_DEBUG=1")
         _debug_log(ctx, "running target setup command: " + " ".join(cmd))
 
     chroot_cmd = ["arch-chroot"]
@@ -1151,7 +1151,7 @@ def run_system_finalizer(ctx: InstallContext) -> None:
 # stage_provisioning_state: produce the on-disk "provisioning state" the runtime's first-boot
 # setup (omarchy-provision-owner) and factory reset (omarchy-system-factory-reset) consume.
 #
-# Every install stashes the bundled Node tarball in /var/lib/omarchy/provisioning/
+# Every install stashes the bundled Node tarball in /var/lib/arch-deploy/provisioning/
 # so a later factory reset can finalize the new owner's user offline. deferred-provisioning
 # installs additionally arm the first-boot setup service and, on encrypted
 # targets, stage the throwaway LUKS passphrase: the keyfile embedded in the
@@ -1162,8 +1162,8 @@ def run_system_finalizer(ctx: InstallContext) -> None:
 # keyfile land in the final UKI build.
 # ─────────────────────────────────────────────────────────────────────────────
 
-PROVISION_STATE_DIR = "var/lib/omarchy/provisioning"
-PROVISION_KEYFILE = "etc/omarchy/provisioning.key"
+PROVISION_STATE_DIR = "var/lib/arch-deploy/provisioning"
+PROVISION_KEYFILE = "etc/arch-deploy/provisioning.key"
 NODE_PACKAGES_DIR = Path("/opt/packages")
 
 
@@ -1183,7 +1183,7 @@ def stage_provisioning_state(ctx: InstallContext) -> None:
     setup_bin = ctx.target / "usr/bin/omarchy-provision-owner"
     if not service_src.exists() or not setup_bin.exists():
         raise RuntimeError(
-            "deferred-provisioning install requested, but the installed Omarchy runtime does not ship "
+            "deferred-provisioning install requested, but the installed arch-deploy runtime does not ship "
             "first-boot setup (omarchy-provision-owner + install/provisioning/omarchy-provision-owner.service). "
             "Update the runtime package this ISO bundles before installing in deferred provisioning."
         )
@@ -1260,15 +1260,15 @@ def _stage_provisioning_luks_unlock(ctx: InstallContext, provisioning_dir) -> No
     keyfile.write_text(password)
     keyfile.chmod(0o600)
 
-    cmdline_dropin = ctx.target / "etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf"
+    cmdline_dropin = ctx.target / "etc/limine-entry-tool.d/99-arch-deploy-provisioning-unlock.conf"
     cmdline_dropin.parent.mkdir(parents=True, exist_ok=True)
     cmdline_dropin.write_text(
-        'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/omarchy/provisioning.key"\n'
+        'KERNEL_CMDLINE[default]+=" cryptkey=rootfs:/etc/arch-deploy/provisioning.key"\n'
     )
 
-    files_dropin = ctx.target / "etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf"
+    files_dropin = ctx.target / "etc/mkinitcpio.conf.d/99-arch-deploy-provisioning-key.conf"
     files_dropin.parent.mkdir(parents=True, exist_ok=True)
-    files_dropin.write_text("FILES+=(/etc/omarchy/provisioning.key)\n")
+    files_dropin.write_text("FILES+=(/etc/arch-deploy/provisioning.key)\n")
 
 
 def finalize_limine_boot(ctx: InstallContext) -> None:
@@ -1313,8 +1313,8 @@ def finalize_limine_boot(ctx: InstallContext) -> None:
         check=False,
         capture_output=True,
     )
-    if "Omarchy" not in limine_conf.read_text():
-        raise RuntimeError(f"{limine_conf} has no Omarchy entry")
+    if "arch-deploy" not in limine_conf.read_text():
+        raise RuntimeError(f"{limine_conf} has no arch-deploy entry")
     if "cryptdevice=" in cmdline and "cryptdevice=" not in limine_conf.read_text():
         raise RuntimeError(f"encrypted install but {limine_conf} has no cryptdevice=")
 
@@ -1394,13 +1394,13 @@ def configure_dns_resolver(ctx: InstallContext) -> None:
     resolv_conf.symlink_to(target)
 
 
-def _read_omarchy_mirror() -> str:
-    p = Path("/root/omarchy_mirror")
+def _read_arch_deploy_mirror() -> str:
+    p = Path("/root/arch_deploy_mirror")
     return p.read_text().strip() if p.exists() else "stable"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# configure_login: seed SDDM's last user/session for the password-only Omarchy
+# configure_login: seed SDDM's last user/session for the password-only arch-deploy
 # greeter. Encrypted installs autologin because the LUKS prompt is the auth
 # boundary; unencrypted installs leave SDDM as the auth screen.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1408,8 +1408,8 @@ def _read_omarchy_mirror() -> str:
 def configure_login(ctx: InstallContext) -> None:
     sddm_dir = ctx.target / "etc" / "sddm.conf.d"
     sddm_dir.mkdir(parents=True, exist_ok=True)
-    (sddm_dir / "99-omarchy-login.conf").write_text(
-        "[Theme]\nCurrent=omarchy\n\n"
+    (sddm_dir / "99-arch-deploy-login.conf").write_text(
+        "[Theme]\nCurrent=arch-deploy\n\n"
         "[Users]\nRememberLastUser=true\nRememberLastSession=true\n"
     )
 
@@ -1418,7 +1418,7 @@ def configure_login(ctx: InstallContext) -> None:
         autologin_conf.write_text(
             "[Autologin]\n"
             f"User={ctx.username}\n"
-            "Session=omarchy.desktop\n"
+            "Session=arch-deploy.desktop\n"
         )
     else:
         # deferred-provisioning installs have no user yet; omarchy-provision-owner writes autologin
@@ -1429,7 +1429,7 @@ def configure_login(ctx: InstallContext) -> None:
         state_dir = ctx.target / "var" / "lib" / "sddm"
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / "state.conf").write_text(
-            f"[Last]\nSession=omarchy.desktop\nUser={ctx.username}\n"
+            f"[Last]\nSession=arch-deploy.desktop\nUser={ctx.username}\n"
         )
         subprocess.run(
             ["arch-chroot", str(ctx.target), "chown", "sddm:sddm",
@@ -1448,7 +1448,7 @@ def configure_login(ctx: InstallContext) -> None:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # configure_ssh_access: make the installed machine reachable over SSH with the
-# keys an autoinstall drive supplied. A stock Omarchy install ships openssh but
+# keys an autoinstall drive supplied. A stock arch-deploy install ships openssh but
 # leaves sshd disabled, and its firewall.sh opens only LocalSend and docker DNS,
 # so all three pieces -- keys, service, firewall -- have to be done here.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1565,7 +1565,7 @@ ConditionPathExists={TAILSCALE_AUTHKEY_TARGET}
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/sh -c 'until tailscale up --auth-key file:{TAILSCALE_AUTHKEY_TARGET}; do sleep 15; done; rm -f {TAILSCALE_AUTHKEY_TARGET}; systemctl disable omarchy-tailscale-join.service'
+ExecStart=/usr/bin/sh -c 'until tailscale up --auth-key file:{TAILSCALE_AUTHKEY_TARGET}; do sleep 15; done; rm -f {TAILSCALE_AUTHKEY_TARGET}; systemctl disable arch-deploy-tailscale-join.service'
 
 [Install]
 WantedBy=multi-user.target
@@ -1592,12 +1592,12 @@ def configure_tailscale(ctx: InstallContext) -> None:
     authkey.chmod(0o600)
 
     info("› enabling tailscaled and the first-boot join")
-    unit = ctx.target / "etc" / "systemd" / "system" / "omarchy-tailscale-join.service"
+    unit = ctx.target / "etc" / "systemd" / "system" / "arch-deploy-tailscale-join.service"
     unit.parent.mkdir(parents=True, exist_ok=True)
     unit.write_text(TAILSCALE_JOIN_UNIT)
     subprocess.run(
         ["arch-chroot", str(ctx.target), "systemctl", "enable",
-         "tailscaled.service", "omarchy-tailscale-join.service"],
+         "tailscaled.service", "arch-deploy-tailscale-join.service"],
         check=True,
     )
 
@@ -1659,8 +1659,8 @@ def validate_boot(ctx: InstallContext) -> None:
     if not limine_conf.exists():
         raise RuntimeError(f"{limine_conf} missing")
     limine_conf_text = limine_conf.read_text()
-    if "Omarchy" not in limine_conf_text:
-        raise RuntimeError(f"{limine_conf} has no Omarchy entry")
+    if "arch-deploy" not in limine_conf_text:
+        raise RuntimeError(f"{limine_conf} has no arch-deploy entry")
 
     if ctx.encrypt and "cryptdevice=" not in limine_conf_text:
         raise RuntimeError(f"Encrypted install but {limine_conf} has no cryptdevice=")
@@ -1671,7 +1671,7 @@ def validate_boot(ctx: InstallContext) -> None:
 
     default_limine = ctx.target / "etc" / "default" / "limine"
     config_text = _limine_combined_config_text(ctx, default_limine.read_text())
-    uki_prefix = _limine_setting(config_text, "CUSTOM_UKI_NAME", "omarchy") or "omarchy"
+    uki_prefix = _limine_setting(config_text, "CUSTOM_UKI_NAME", "arch-deploy") or "arch-deploy"
     kernel = storage.get("kernel") or (ctx.user_configuration.get("kernels") or ["linux-omarchy"])[0]
 
     if arch.has_uefi():
@@ -1679,7 +1679,7 @@ def validate_boot(ctx: InstallContext) -> None:
         if not limine_binary.exists() or limine_binary.stat().st_size == 0:
             raise RuntimeError(f"{limine_binary} missing or empty")
 
-        # Hardware packages (omarchy-hw-intel-ptl, …) can swap the kernel out
+        # Hardware packages (arch-deploy-hw-intel-ptl, …) can swap the kernel out
         # from under us mid-install, so trust what's on disk over what we asked
         # for and only fall back to the configured name when nothing's there.
         uki_dir = esp_mount / "EFI" / "Linux"
@@ -1738,10 +1738,10 @@ def _assert_boot_hooks_restored(ctx: InstallContext) -> None:
         path = hooks_dir / name
         if _is_devnull_symlink(path):
             raise RuntimeError(f"{path} is still masked to /dev/null")
-        backup = hooks_dir / f"{name}.omarchy-backup"
+        backup = hooks_dir / f"{name}.arch-deploy-backup"
         if backup.exists() or backup.is_symlink():
             raise RuntimeError(f"{backup} left behind by the install-time hook mask")
-        # limine-mkinitcpio-hook is a hard dependency of the Omarchy runtime
+        # limine-mkinitcpio-hook is a hard dependency of the arch-deploy runtime
         # package, so the real hook is on disk before the mask ever goes up and
         # must be on disk again now.
         if not path.is_file():
@@ -1855,14 +1855,14 @@ def create_factory_snapshot(ctx: InstallContext) -> None:
 # The mkinitcpio/cmdline drop-ins go with the keyfile — a reset rebuild would
 # otherwise fail on FILES pointing at a scrubbed path.
 FACTORY_SCRUB_PATHS = (
-    "var/lib/omarchy/provisioning/authorized_keys",
-    "var/lib/omarchy/provisioning/luks-key",
-    "etc/omarchy/provisioning.key",
-    "etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf",
-    "etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf",
+    "var/lib/arch-deploy/provisioning/authorized_keys",
+    "var/lib/arch-deploy/provisioning/luks-key",
+    "etc/arch-deploy/provisioning.key",
+    "etc/limine-entry-tool.d/99-arch-deploy-provisioning-unlock.conf",
+    "etc/mkinitcpio.conf.d/99-arch-deploy-provisioning-key.conf",
     "etc/tailscale/authkey",
-    "etc/systemd/system/omarchy-tailscale-join.service",
-    "etc/systemd/system/multi-user.target.wants/omarchy-tailscale-join.service",
+    "etc/systemd/system/arch-deploy-tailscale-join.service",
+    "etc/systemd/system/multi-user.target.wants/arch-deploy-tailscale-join.service",
 )
 
 
@@ -1940,9 +1940,9 @@ def cleanup_protected_state(ctx: InstallContext) -> None:
         return
 
     subprocess.run(["umount", "-R", str(ctx.target)], check=False, capture_output=True)
-    if Path("/dev/mapper/omarchy_root").exists():
+    if Path("/dev/mapper/arch_deploy_root").exists():
         subprocess.run(
-            ["cryptsetup", "close", "omarchy_root"],
+            ["cryptsetup", "close", "arch_deploy_root"],
             check=False,
             capture_output=True,
         )

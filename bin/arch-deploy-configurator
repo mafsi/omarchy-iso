@@ -4,7 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ -z "${OMARCHY_PATH:-}" ]]; then
-  for candidate in "$repo_root/../omarchy-installer" "$repo_root/../omarchy" /usr/share/omarchy; do
+  for candidate in "$repo_root/../arch-deploy-installer" "$repo_root/../arch-deploy" /usr/share/omarchy; do
     if [[ -f "$candidate/logo.txt" ]]; then
       export OMARCHY_PATH="$candidate"
       break

@@ -1,4 +1,4 @@
-"""Fresh installs use the Omarchy kernel, except for T2 Macs."""
+"""Fresh installs use the arch-deploy kernel, except for T2 Macs."""
 
 import json
 import os
@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "configs/airootfs/usr/share/omarchy-iso"))
+sys.path.insert(0, str(ROOT / "configs/airootfs/usr/share/arch-deploy"))
 sys.modules.setdefault(
     "orchestrator.archinstall_adapter",
     types.ModuleType("orchestrator.archinstall_adapter"),
@@ -69,7 +69,7 @@ class KernelSelectionTest(unittest.TestCase):
             ({}, "linux-t2", ["linux-t2"]),
             ({"kernels": ["linux-lts"]}, "linux-omarchy", ["linux-lts"]),
             ({"kernels": ["linux-omarchy", "linux-lts"]}, "linux-t2", ["linux-omarchy", "linux-lts"]),
-            ({"omarchy_install": {"storage": {"kernel": "linux-t2"}}}, "linux-omarchy", ["linux-t2"]),
+            ({"arch_deploy_install": {"storage": {"kernel": "linux-t2"}}}, "linux-omarchy", ["linux-t2"]),
         ]:
             with self.subTest(config=config, default=default), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp)
@@ -78,9 +78,9 @@ class KernelSelectionTest(unittest.TestCase):
                 config_path.write_text(json.dumps(config))
                 creds_path.write_text(json.dumps({"users": [{"username": "test"}]}))
                 with mock.patch.dict(os.environ, {
-                    "OMARCHY_INSTALL_CONFIG": str(config_path),
-                    "OMARCHY_INSTALL_CREDS": str(creds_path),
-                    "OMARCHY_INSTALL_STATE_DIR": str(root / "state"),
+                    "ARCH_DEPLOY_INSTALL_CONFIG": str(config_path),
+                    "ARCH_DEPLOY_INSTALL_CREDS": str(creds_path),
+                    "ARCH_DEPLOY_INSTALL_STATE_DIR": str(root / "state"),
                 }, clear=True), mock.patch.object(context, "_default_kernel", return_value=default):
                     ctx = context.InstallContext.from_env()
                 self.assertEqual(ctx.user_configuration["kernels"], expected)
@@ -116,7 +116,7 @@ class KernelSelectionTest(unittest.TestCase):
                     unmount = stack.enter_context(mock.patch.object(phases_impl, "_unmount_offline_package_cache"))
                     stack.enter_context(mock.patch.object(phases_impl, "configure_keyboard", return_value=True))
                     stack.enter_context(mock.patch.object(phases_impl, "_install_early_packages", side_effect=lambda inst: events.append("early")))
-                    stack.enter_context(mock.patch.object(phases_impl, "_runtime_package_list", return_value=["omarchy"]))
+                    stack.enter_context(mock.patch.object(phases_impl, "_runtime_package_list", return_value=["arch-deploy"]))
                     stack.enter_context(mock.patch.object(phases_impl.arch, "is_pre_mount", return_value=True, create=True))
                     stack.enter_context(mock.patch.object(phases_impl.arch, "root_user", return_value=None, create=True))
                     opened = stack.enter_context(mock.patch.object(phases_impl.arch, "open_installer", create=True))
@@ -128,7 +128,7 @@ class KernelSelectionTest(unittest.TestCase):
                         phases_impl.arch_install_system(ctx)
                     expected = ["base", [f"{kernel}-headers" for kernel in kernels]]
                     if not fail_headers:
-                        expected += ["early", ["omarchy"]]
+                        expected += ["early", ["arch-deploy"]]
                     self.assertEqual(events, expected)
                     unmask.assert_called_once_with(ctx)
                     unmount.assert_called_once_with(ctx)
@@ -165,18 +165,18 @@ class KernelSelectionTest(unittest.TestCase):
                 files = {
                     f"usr/lib/modules/7.2-test/pkgbase": expected + "\n",
                     "usr/lib/modules/7.2-test/build/include/config/kernel.release": "7.2-test\n",
-                    "boot/limine.conf": "/Omarchy\n",
+                    "boot/limine.conf": "/arch-deploy\n",
                     "etc/kernel/cmdline": "root=UUID=test\n",
-                    "etc/default/limine": "CUSTOM_UKI_NAME=omarchy\n",
+                    "etc/default/limine": "CUSTOM_UKI_NAME=arch-deploy\n",
                     "boot/EFI/limine/limine_x64.efi": "bootloader",
-                    f"boot/EFI/Linux/omarchy_{expected}.efi": "UKI",
+                    f"boot/EFI/Linux/arch_deploy_{expected}.efi": "UKI",
                 }
                 for name, content in files.items():
                     path = target / name
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.write_text(content)
                 ctx = types.SimpleNamespace(
-                    target=target, omarchy_install={"storage": storage},
+                    target=target, arch_deploy_install={"storage": storage},
                     user_configuration=configuration, encrypt=False,
                     is_protected=False, defer_provisioning=False,
                 )
@@ -186,7 +186,7 @@ class KernelSelectionTest(unittest.TestCase):
                          "entries": {"0001": "Limine\tHD(1,GPT,test)"},
                      }):
                     phases_impl.validate_boot(ctx)
-                    (target / f"boot/EFI/Linux/omarchy_{expected}.efi").unlink()
+                    (target / f"boot/EFI/Linux/arch_deploy_{expected}.efi").unlink()
                     with self.assertRaisesRegex(RuntimeError, "missing or empty"):
                         phases_impl.validate_boot(ctx)
 

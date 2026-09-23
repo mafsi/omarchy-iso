@@ -2,11 +2,11 @@
 
 archinstall's set_keyboard_language boots the installed system in a
 systemd-nspawn container just to run localectl. systemd-firstboot --root
-produces the part of that output Omarchy actually consumes — KEYMAP for the
-console plus the XKB* settings in vconsole.conf that omarchy's
+produces the part of that output arch-deploy actually consumes — KEYMAP for the
+console plus the XKB* settings in vconsole.conf that arch-deploy's
 detect-keyboard-layout.sh copies into Hyprland's kb_layout — without booting
 anything. The Xorg 00-keyboard.conf that localectl also writes is not
-generated: nothing on an Omarchy system reads it.
+generated: nothing on an arch-deploy system reads it.
 """
 
 from __future__ import annotations

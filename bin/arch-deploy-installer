@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Preview the shipped Omarchy installer dashboard without building an ISO.
+# Preview the shipped arch-deploy installer dashboard without building an ISO.
 set -euo pipefail
 
 # The dashboard drives the package phase from the target's pacman database, so
@@ -57,7 +57,7 @@ simulate_install() {
     "Starting installation" 0.5
     "Preparing live environment" 0.8
     "Preparing install target" 0.3
-    "Installing Arch + Omarchy" 5.0
+    "Installing Arch + arch-deploy" 5.0
     "Configuring hibernation" 0.4
     "Configuring system" 1.2
     "Finalizing Limine boot" 1.0
@@ -75,7 +75,7 @@ simulate_install() {
     phase_started_at="$EPOCHREALTIME"
     write_simulation_state "$state_file" "$started_at" "$phase_started_at" \
       "$phase" "$target" "$index" "$total"
-    if [[ $phase == "Installing Arch + Omarchy" ]]; then
+    if [[ $phase == "Installing Arch + arch-deploy" ]]; then
       simulate_packages "$db" "$duration" "$PREVIEW_PACKAGES"
     else
       sleep "$duration"
@@ -100,7 +100,7 @@ if (( $# > 0 )); then
 fi
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-dashboard="$repo_root/configs/airootfs/usr/local/bin/omarchy-install-dashboard"
+dashboard="$repo_root/configs/airootfs/usr/local/bin/arch-deploy-install-dashboard"
 
 if [[ ! -x $dashboard ]]; then
   echo "Installer dashboard is not executable: $dashboard" >&2
@@ -108,7 +108,7 @@ if [[ ! -x $dashboard ]]; then
 fi
 
 if [[ -z ${OMARCHY_PATH:-} ]]; then
-  for candidate in "$repo_root/../omarchy" /usr/share/omarchy; do
+  for candidate in "$repo_root/../arch-deploy" /usr/share/omarchy; do
     if [[ -f $candidate/logo.txt ]]; then
       export OMARCHY_PATH="$candidate"
       break
@@ -117,7 +117,7 @@ if [[ -z ${OMARCHY_PATH:-} ]]; then
 fi
 
 if [[ -z ${OMARCHY_PATH:-} || ! -f $OMARCHY_PATH/logo.txt ]]; then
-  echo "Unable to find Omarchy logo.txt; set OMARCHY_PATH to an Omarchy checkout." >&2
+  echo "Unable to find arch-deploy logo.txt; set OMARCHY_PATH to an arch-deploy checkout." >&2
   exit 1
 fi
 
@@ -135,8 +135,8 @@ touch "$log_file"
 # package-driven bar rather than the missing-signal fallback.
 printf '%s\n' "$PREVIEW_PACKAGES" >"$preview_dir/expected-packages"
 
-OMARCHY_UI_AUTO_REBOOT=no \
-  OMARCHY_EXPECTED_PACKAGES_FILE="$preview_dir/expected-packages" \
+ARCH_DEPLOY_UI_AUTO_REBOOT=no \
+  ARCH_DEPLOY_EXPECTED_PACKAGES_FILE="$preview_dir/expected-packages" \
   PREVIEW_PACKAGES="$PREVIEW_PACKAGES" \
   "$dashboard" "$log_file" "$state_file" -- \
   "$0" --simulate-install "$state_file"

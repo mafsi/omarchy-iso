@@ -1,11 +1,11 @@
-"""Omarchy install orchestrator.
+"""arch-deploy install orchestrator.
 
 Single tool that owns the full install phase ordering, with archinstall used as
 a library subsystem (not as the top-level installer).
 
 The live-ISO wrapper consumes CLI args and passes configuration paths via
-OMARCHY_INSTALL_* environment variables before Python starts. This keeps
-archinstall's import-time CLI parsing from seeing Omarchy-specific flags.
+ARCH_DEPLOY_INSTALL_* environment variables before Python starts. This keeps
+archinstall's import-time CLI parsing from seeing arch-deploy-specific flags.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def build_phases(ctx: InstallContext):
     Full-disk and protected installs use the same phase sequence. The
     configurator only changes the JSON input: full-disk asks archinstall to
     create/mount the layout, while protected provides an already-mounted target
-    and the partition details Omarchy needs for boot/fstab generation.
+    and the partition details arch-deploy needs for boot/fstab generation.
     """
     from .phases_impl import (
         prepare_live,
@@ -48,7 +48,7 @@ def build_phases(ctx: InstallContext):
     return [
         ("Preparing live environment", prepare_live),
         ("Preparing install target",   prepare_install_target),
-        ("Installing Arch + Omarchy",  arch_install_system),
+        ("Installing Arch + arch-deploy",  arch_install_system),
         ("Configuring hibernation",    configure_hibernation),
         ("Configuring system",         run_system_finalizer),
         # Before finalize_limine_boot: the deferred-provisioning cryptkey drop-in and keyfile
@@ -73,7 +73,7 @@ def main() -> int:
         return 2
 
     who = ctx.username or "deferred provisioning (user created at first boot)"
-    info(f"Installing Omarchy for {who} → {ctx.target}")
+    info(f"Installing arch-deploy for {who} → {ctx.target}")
 
     from .phases_impl import (
         boost_cpu_governor,

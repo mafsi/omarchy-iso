@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Unit tests for omarchy-cidata-load. The script takes a path prefix, so every
+# Unit tests for arch-deploy-cidata-load. The script takes a path prefix, so every
 # case runs against a throwaway sandbox with mount/umount/udevadm stubbed out:
 # "mounting" copies the fake drive's contents into the mountpoint, and every
 # stub logs its invocation so the cases can assert what was (not) called.
@@ -8,7 +8,7 @@
 set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-CIDATA_LOAD="$ROOT/configs/airootfs/usr/local/bin/omarchy-cidata-load"
+CIDATA_LOAD="$ROOT/configs/airootfs/usr/local/bin/arch-deploy-cidata-load"
 
 pass() {
   printf 'ok - %s\n' "$1"

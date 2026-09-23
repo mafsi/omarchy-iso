@@ -73,7 +73,7 @@ def run(ctx: InstallContext, phases: list[tuple[str, PhaseFn]]) -> None:
     state["expected_packages"] = _expected_package_count()
     _write_state(state_path, state)
 
-    timing_path = ctx.target / "var" / "log" / "omarchy-install-timing.json"
+    timing_path = ctx.target / "var" / "log" / "arch-deploy-install-timing.json"
     timing_path.parent.mkdir(parents=True, exist_ok=True)
     _write_state(timing_path, state)
 
@@ -90,7 +90,7 @@ def _installed_package_count(target: Path) -> int:
 
 
 def _expected_package_count() -> int:
-    path = Path("/usr/share/omarchy-iso/expected-packages")
+    path = Path("/usr/share/arch-deploy/expected-packages")
     try:
         return int(path.read_text().split()[0])
     except (OSError, ValueError, IndexError):

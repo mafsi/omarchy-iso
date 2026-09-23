@@ -1,12 +1,12 @@
 #!/bin/bash
 
 if [ $# -eq 0 ]; then
-  echo "Usage: omarchy-iso-upload [release/omarchy.iso]"
+  echo "Usage: arch-deploy-upload [release/arch-deploy.iso]"
   exit 1
 fi
 
 if [[ ! -f ~/.config/rclone/rclone.conf ]]; then
-  echo "You must first configure rclone with the R2 credentials: omarchy-iso-rclone-config"
+  echo "You must first configure rclone with the R2 credentials: arch-deploy-rclone-config"
   exit 1
 fi
 
@@ -15,14 +15,14 @@ fi
 # hidden by a checksum that did.
 status=0
 
-rclone copy "$1" Omarchy:omarchy/ -P || status=1
+rclone copy "$1" arch-deploy:arch-deploy/ -P || status=1
 
 # The signature and the checksum are only worth anything to someone who can
 # reach them beside the ISO, so they go up in the same run rather than a step
 # a release can finish without.
 for sidecar in "$1.sig" "$1.sha256"; do
   if [[ -f $sidecar ]]; then
-    rclone copy "$sidecar" Omarchy:omarchy/ -P || status=1
+    rclone copy "$sidecar" arch-deploy:arch-deploy/ -P || status=1
   fi
 done
 

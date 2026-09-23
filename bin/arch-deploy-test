@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Acceptance test harness: boots an Omarchy ISO in a headless QEMU VM and
+# Acceptance test harness: boots an arch-deploy in a headless QEMU VM and
 # drives the real interactive install flow the way a user would — reading
 # each screen through QMP screendumps + OCR, and answering with virtual
 # keystrokes. Nothing in the product is bypassed or stubbed: the configurator
@@ -9,9 +9,9 @@
 # After first boot it logs into a console TTY (typed, like everything else)
 # to authorize an SSH key, snapshots the installed disk, then boots a
 # throwaway overlay and runs the in-guest acceptance suite (test/acceptance
-# in the omarchy repo) over SSH.
+# in the arch-deploy repo) over SSH.
 #
-# Usage: omarchy-iso-test [release/omarchy.iso] [options]
+# Usage: arch-deploy-test [release/arch-deploy.iso] [options]
 #
 #   --encrypt          Drive the encrypted install flow (default: unencrypted)
 #   --provision              Drive the deferred-provisioning install flow: no user during install, the
@@ -47,9 +47,9 @@ NO_PREVIEW=false
 SYNC_DIR=""
 SYNC_ALL=false
 
-GUEST_USER="omarchy"
-GUEST_PASSWORD="omarchy"
-GUEST_HOSTNAME="omarchy-test"
+GUEST_USER="arch-deploy"
+GUEST_PASSWORD="arch-deploy"
+GUEST_HOSTNAME="arch-deploy-test"
 
 while (($#)); do
   case "$1" in
@@ -59,7 +59,7 @@ while (($#)); do
     --install-only) INSTALL_ONLY=true ;;
     --keep-running) KEEP_RUNNING=true ;;
     --no-preview) NO_PREVIEW=true ;;
-    --sync-omarchy) SYNC_DIR="$2"; shift ;;
+    --sync-arch-deploy) SYNC_DIR="$2"; shift ;;
     --sync-all) SYNC_DIR="$2"; SYNC_ALL=true; shift ;;
     --port) SSH_PORT="$2"; shift ;;
     --memory) MEMORY="$2"; shift ;;
@@ -80,11 +80,11 @@ fi
 
 if [[ ! -f ${ISO:-} ]]; then
   echo "No ISO to test. Pass one explicitly or put it in release/." >&2
-  echo "Usage: omarchy-iso-test [release/omarchy.iso] [options]" >&2
+  echo "Usage: arch-deploy-test [release/arch-deploy.iso] [options]" >&2
   exit 1
 fi
 
-omarchy-pkg-add qemu-full edk2-ovmf socat imagemagick tesseract tesseract-data-eng
+arch-deploy-pkg-add qemu-full edk2-ovmf socat imagemagick tesseract tesseract-data-eng
 
 OVMF_CODE="/usr/share/edk2/x64/OVMF_CODE.4m.fd"
 OVMF_VARS_TEMPLATE="/usr/share/edk2/x64/OVMF_VARS.4m.fd"
@@ -104,7 +104,7 @@ mkdir -p "$BASE_DIR" "$RUN_DIR"
 
 # Unix socket paths are capped at ~108 bytes, which a run directory nested in
 # test-runs/<iso-name>/runs/<timestamp> can exceed. Keep the socket in /tmp.
-QMP_SOCK=$(mktemp -u "${TMPDIR:-/tmp}/omarchy-iso-test-qmp.XXXXXX.sock")
+QMP_SOCK=$(mktemp -u "${TMPDIR:-/tmp}/arch-deploy-test-qmp.XXXXXX.sock")
 PIDFILE="$RUN_DIR/qemu.pid"
 
 log() {
@@ -407,8 +407,8 @@ guest_layer_absent() {
 }
 
 cleanup_shortcut_state() {
-  ssh_session 'for plugin in omarchy.menu omarchy.emojis omarchy.clipboard omarchy.audio; do
-    omarchy-shell shell hide "$plugin" >/dev/null 2>&1 || true
+  ssh_session 'for plugin in arch-deploy.menu arch-deploy.emojis arch-deploy.clipboard arch-deploy.audio; do
+    arch-deploy-shell shell hide "$plugin" >/dev/null 2>&1 || true
   done
   while read -r address; do
     hyprctl dispatch "hl.dsp.window.close({ window = \"address:$address\" })" >/dev/null 2>&1 ||
@@ -423,7 +423,7 @@ verify_surface_shortcut() {
   press "$chord"
   if ! wait_for_guest_state "$name shortcut opens" 15 guest_layer_present "$namespace"; then
     capture_console "failure-shortcut-$name-open"
-    ssh_session "omarchy-shell shell hide '$plugin' >/dev/null 2>&1 || true" || true
+    ssh_session "arch-deploy-shell shell hide '$plugin' >/dev/null 2>&1 || true" || true
     return 1
   fi
   capture_console "success-shortcut-$name"
@@ -431,7 +431,7 @@ verify_surface_shortcut() {
   press esc
   if ! wait_for_guest_state "$name shortcut surface closes" 15 guest_layer_absent "$namespace"; then
     capture_console "failure-shortcut-$name-close"
-    ssh_session "omarchy-shell shell hide '$plugin' >/dev/null 2>&1 || true" || true
+    ssh_session "arch-deploy-shell shell hide '$plugin' >/dev/null 2>&1 || true" || true
     return 1
   fi
 }
@@ -508,10 +508,10 @@ verify_desktop_shortcuts() {
 }
 
 verify_universal_clipboard_shortcuts() {
-  local copy_token="OmarchyUniversalCopy$(date +%s)"
-  local paste_token="OmarchyUniversalPaste$(date +%s)"
-  local terminal_token="OmarchyTerminalPaste$(date +%s)"
-  local terminal_result="/tmp/omarchy-universal-terminal-paste"
+  local copy_token="arch-deployUniversalCopy$(date +%s)"
+  local paste_token="arch-deployUniversalPaste$(date +%s)"
+  local terminal_token="arch-deployTerminalPaste$(date +%s)"
+  local terminal_result="/tmp/arch-deploy-universal-terminal-paste"
 
   cleanup_shortcut_state
   ssh_session "setsid -f chromium --new-window about:blank >/dev/null 2>&1"
@@ -584,11 +584,11 @@ shortcut_smoke_phase() {
 
   local status=0
   local name chord namespace plugin
-  local shortcuts='menu|meta_l-spc|omarchy-menu|omarchy.menu
-apps-menu|meta_l-alt-spc|omarchy-menu|omarchy.menu
-emojis|meta_l-ctrl-e|omarchy-emojis|omarchy.emojis
-clipboard|meta_l-ctrl-v|omarchy-clipboard|omarchy.clipboard
-audio-panel|meta_l-ctrl-a|omarchy-keyboard-panel|omarchy.audio'
+  local shortcuts='menu|meta_l-spc|arch-deploy-menu|arch-deploy.menu
+apps-menu|meta_l-alt-spc|arch-deploy-menu|arch-deploy.menu
+emojis|meta_l-ctrl-e|arch-deploy-emojis|arch-deploy.emojis
+clipboard|meta_l-ctrl-v|arch-deploy-clipboard|arch-deploy.clipboard
+audio-panel|meta_l-ctrl-a|arch-deploy-keyboard-panel|arch-deploy.audio'
 
   cleanup_shortcut_state
   while IFS='|' read -r name chord namespace plugin; do
@@ -670,12 +670,12 @@ drive_configurator() {
   press ret
 
   wait_for_screen "Full name" 60
-  type_text "Omarchy Test"
+  type_text "arch-deploy Test"
   capture_console "success-installer-05-full-name"
   press ret
 
   wait_for_screen "Email address" 60
-  type_text "test@omarchy.org"
+  type_text "test@arch-deploy.org"
   capture_console "success-installer-06-email"
   press ret
 
@@ -755,7 +755,7 @@ drive_provision_owner() {
   press ret
 
   wait_for_screen "Full name" 60
-  type_text "Omarchy Test"
+  type_text "arch-deploy Test"
   press ret
 
   wait_for_screen "Email address" 60
@@ -764,7 +764,7 @@ drive_provision_owner() {
   # the new layout — itself further proof the deferred keymap took effect.
   type_text "test"
   press shift-apostrophe
-  type_text "omarchy.org"
+  type_text "arch-deploy.org"
   capture_console "success-provision-04-email"
   press ret
 
@@ -984,7 +984,7 @@ establish_session() {
 install_phase() {
   log "Installing $(basename "$ISO") into a fresh VM (headless, driven via console)"
 
-  [[ -f $SSH_KEY ]] || ssh-keygen -t ed25519 -N "" -q -C "omarchy-iso-test" -f "$SSH_KEY"
+  [[ -f $SSH_KEY ]] || ssh-keygen -t ed25519 -N "" -q -C "arch-deploy-test" -f "$SSH_KEY"
 
   rm -f "$BASE_DISK"
   qemu-img create -f qcow2 "$BASE_DISK" 40G >/dev/null
@@ -1015,7 +1015,7 @@ install_phase() {
       # Capture rc via `|| rc=$?` so a non-zero result doesn't trip `set -e`
       # (this command is intentionally allowed to "fail" — that's the signal).
       rc=0
-      ssh_guest "test -f /var/lib/omarchy/provisioning/pending" 2>/dev/null || rc=$?
+      ssh_guest "test -f /var/lib/arch-deploy/provisioning/pending" 2>/dev/null || rc=$?
       # rc 0 = flag still present; rc 255 = SSH not up yet (finalization may
       # still be running) — keep waiting. Only a clean "file absent" (rc 1)
       # means provisioning finished, so we don't snapshot mid-finalization on a
@@ -1050,12 +1050,12 @@ install_phase() {
     fi
 
     # Deferred first-boot setup hands straight off to SDDM once the oneshot
-    # service exits — no celebration screen, no Start Omarchy button to confirm.
+    # service exits — no celebration screen, no Start arch-deploy button to confirm.
     capture_console "success-provision-09-handoff"
   fi
 
-  ssh_guest "echo $GUEST_PASSWORD | sudo -S cat /var/log/omarchy-install-timing.json 2>/dev/null" \
-    >"$RUN_DIR/omarchy-install-timing.json" 2>/dev/null || true
+  ssh_guest "echo $GUEST_PASSWORD | sudo -S cat /var/log/arch-deploy-install-timing.json 2>/dev/null" \
+    >"$RUN_DIR/arch-deploy-install-timing.json" 2>/dev/null || true
   ssh_guest "echo $GUEST_PASSWORD | sudo -S cat /var/log/pacman.log 2>/dev/null" \
     >"$RUN_DIR/pacman.log" 2>/dev/null || true
 
@@ -1063,10 +1063,10 @@ install_phase() {
   stop_vm
 }
 
-sync_omarchy() {
+sync_arch_deploy() {
   [[ -n $SYNC_DIR ]] || return 0
 
-  local target=".local/share/omarchy"
+  local target=".local/share/arch-deploy"
 
   if $SYNC_ALL; then
     log "Syncing $SYNC_DIR into the guest"
@@ -1084,7 +1084,7 @@ acceptance_phase() {
   start_vm "$RUN_DIR/run.qcow2" "$RUN_DIR/serial.log"
 
   establish_session
-  sync_omarchy
+  sync_arch_deploy
 
   local status=0
   shortcut_smoke_phase || status=1
@@ -1094,18 +1094,18 @@ acceptance_phase() {
   # run. They derive their root from their own location in the synced tree.
   if $SYNC_ALL; then
     log "Running CLI and shell suites in the guest"
-    ssh_guest "bash .local/share/omarchy/test/all" || status=$?
+    ssh_guest "bash .local/share/arch-deploy/test/all" || status=$?
   fi
 
   # The product under test is always the installed tree — VM runs verify the
   # finished product, never a dev-linked checkout.
   log "Running acceptance suite"
-  ssh_guest "OMARCHY_PATH=/usr/share/omarchy OMARCHY_ACCEPTANCE_DIR=/tmp/omarchy-acceptance \
-    OMARCHY_ACCEPTANCE_SUDO_PASSWORD=$GUEST_PASSWORD bash .local/share/omarchy/test/acceptance" || status=$?
+  ssh_guest "OMARCHY_PATH=/usr/share/omarchy ARCH_DEPLOY_ACCEPTANCE_DIR=/tmp/arch-deploy-acceptance \
+    ARCH_DEPLOY_ACCEPTANCE_SUDO_PASSWORD=$GUEST_PASSWORD bash .local/share/arch-deploy/test/acceptance" || status=$?
 
   log "Collecting artifacts into $RUN_DIR"
-  ssh_guest "tar -C /tmp -cf - omarchy-acceptance 2>/dev/null" | tar -C "$RUN_DIR" -xf - || true
-  ssh_guest "echo $GUEST_PASSWORD | sudo -S cat /var/log/omarchy-install.log 2>/dev/null" >"$RUN_DIR/omarchy-install.log" 2>/dev/null || true
+  ssh_guest "tar -C /tmp -cf - arch-deploy-acceptance 2>/dev/null" | tar -C "$RUN_DIR" -xf - || true
+  ssh_guest "echo $GUEST_PASSWORD | sudo -S cat /var/log/arch-deploy-install.log 2>/dev/null" >"$RUN_DIR/arch-deploy-install.log" 2>/dev/null || true
   if ((status == 0)); then
     capture_console "success-acceptance-final"
   else

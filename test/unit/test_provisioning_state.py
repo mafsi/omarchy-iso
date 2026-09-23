@@ -16,7 +16,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest import mock
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "configs/airootfs/usr/share/omarchy-iso"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "configs/airootfs/usr/share/arch-deploy"))
 
 sys.modules.setdefault(
     "orchestrator.archinstall_adapter", types.ModuleType("orchestrator.archinstall_adapter")
@@ -34,9 +34,9 @@ class ContextDeferProvisioningTest(unittest.TestCase):
         self.state_dir = self.dir / "state"
 
         self.env = {
-            "OMARCHY_INSTALL_CONFIG": str(self.dir / "user_configuration.json"),
-            "OMARCHY_INSTALL_CREDS": str(self.dir / "user_credentials.json"),
-            "OMARCHY_INSTALL_STATE_DIR": str(self.state_dir),
+            "ARCH_DEPLOY_INSTALL_CONFIG": str(self.dir / "user_configuration.json"),
+            "ARCH_DEPLOY_INSTALL_CREDS": str(self.dir / "user_credentials.json"),
+            "ARCH_DEPLOY_INSTALL_STATE_DIR": str(self.state_dir),
         }
 
     def write_config(self, config):
@@ -48,7 +48,7 @@ class ContextDeferProvisioningTest(unittest.TestCase):
     def from_env(self, **extra_env):
         env = {**self.env, **extra_env}
         with mock.patch.dict(os.environ, env, clear=False):
-            for key in ("OMARCHY_INSTALL_DEFER_PROVISIONING_FILE",):
+            for key in ("ARCH_DEPLOY_INSTALL_DEFER_PROVISIONING_FILE",):
                 if key not in env:
                     os.environ.pop(key, None)
             return InstallContext.from_env()
@@ -56,10 +56,10 @@ class ContextDeferProvisioningTest(unittest.TestCase):
     def base_config(self, defer_provisioning=None, disk_encryption=None):
         config = {
             "disk_config": {"config_type": "default_layout"},
-            "omarchy_install": {"mode": "full_disk", "target_mount": "/mnt"},
+            "arch_deploy_install": {"mode": "full_disk", "target_mount": "/mnt"},
         }
         if defer_provisioning is not None:
-            config["omarchy_install"]["defer_provisioning"] = defer_provisioning
+            config["arch_deploy_install"]["defer_provisioning"] = defer_provisioning
         if disk_encryption is not None:
             config["disk_config"]["disk_encryption"] = disk_encryption
         return config
@@ -75,14 +75,14 @@ class ContextDeferProvisioningTest(unittest.TestCase):
         self.write_config(self.base_config())
         marker = self.dir / "defer_provisioning"
         marker.touch()
-        ctx = self.from_env(OMARCHY_INSTALL_DEFER_PROVISIONING_FILE=str(marker))
+        ctx = self.from_env(ARCH_DEPLOY_INSTALL_DEFER_PROVISIONING_FILE=str(marker))
         self.assertTrue(ctx.defer_provisioning)
-        self.assertTrue(ctx.omarchy_install["defer_provisioning"])
+        self.assertTrue(ctx.arch_deploy_install["defer_provisioning"])
 
     def test_absent_marker_file_is_not_deferred_provisioning(self):
         self.write_config(self.base_config())
         self.write_creds({"users": [{"username": "jeff"}]})
-        ctx = self.from_env(OMARCHY_INSTALL_DEFER_PROVISIONING_FILE=str(self.dir / "missing-defer_provisioning"))
+        ctx = self.from_env(ARCH_DEPLOY_INSTALL_DEFER_PROVISIONING_FILE=str(self.dir / "missing-defer_provisioning"))
         self.assertFalse(ctx.defer_provisioning)
         self.assertEqual(ctx.username, "jeff")
 
@@ -163,7 +163,7 @@ def make_ctx(target, **overrides):
         defer_provisioning=True,
         encrypt=False,
         username="",
-        omarchy_install={"mode": "full_disk", "defer_provisioning": True, "storage": {}},
+        arch_deploy_install={"mode": "full_disk", "defer_provisioning": True, "storage": {}},
         user_configuration={"disk_config": {}},
         user_credentials={"users": []},
         state_dir=target / "state",
@@ -201,7 +201,7 @@ class StageProvisioningStateTest(unittest.TestCase):
         setup_bin.write_text("#!/bin/bash\n")
 
     def provisioning_dir(self):
-        return self.target / "var/lib/omarchy/provisioning"
+        return self.target / "var/lib/arch-deploy/provisioning"
 
     def test_normal_install_stages_only_the_node_tarball(self):
         ctx = make_ctx(self.target, defer_provisioning=False)
@@ -260,20 +260,20 @@ class StageProvisioningStateTest(unittest.TestCase):
 
         # Byte-for-byte the slot passphrase — no trailing newline.
         self.assertEqual((self.provisioning_dir() / "luks-key").read_text(), "throwaway-secret")
-        keyfile = self.target / "etc/omarchy/provisioning.key"
+        keyfile = self.target / "etc/arch-deploy/provisioning.key"
         self.assertEqual(keyfile.read_text(), "throwaway-secret")
         self.assertEqual(keyfile.stat().st_mode & 0o777, 0o600)
 
-        cmdline = (self.target / "etc/limine-entry-tool.d/99-omarchy-provisioning-unlock.conf").read_text()
-        self.assertIn("cryptkey=rootfs:/etc/omarchy/provisioning.key", cmdline)
-        files = (self.target / "etc/mkinitcpio.conf.d/99-omarchy-provisioning-key.conf").read_text()
-        self.assertIn("FILES+=(/etc/omarchy/provisioning.key)", files)
+        cmdline = (self.target / "etc/limine-entry-tool.d/99-arch-deploy-provisioning-unlock.conf").read_text()
+        self.assertIn("cryptkey=rootfs:/etc/arch-deploy/provisioning.key", cmdline)
+        files = (self.target / "etc/mkinitcpio.conf.d/99-arch-deploy-provisioning-key.conf").read_text()
+        self.assertIn("FILES+=(/etc/arch-deploy/provisioning.key)", files)
 
     def test_deferred_provisioning_pre_encrypted_without_passphrase_fails(self):
         self.install_runtime_provisioning_support()
         ctx = make_ctx(
             self.target,
-            omarchy_install={"mode": "protected", "defer_provisioning": True, "storage": {"luks_uuid": "abc"}},
+            arch_deploy_install={"mode": "protected", "defer_provisioning": True, "storage": {"luks_uuid": "abc"}},
         )
         with self.assertRaisesRegex(RuntimeError, "passphrase"):
             phases_impl.stage_provisioning_state(ctx)
@@ -297,7 +297,7 @@ class ConfigureLoginDeferProvisioningTest(unittest.TestCase):
         ctx = make_ctx(self.target, encrypt=True)
         phases_impl.configure_login(ctx)
 
-        self.assertTrue((self.target / "etc/sddm.conf.d/99-omarchy-login.conf").exists())
+        self.assertTrue((self.target / "etc/sddm.conf.d/99-arch-deploy-login.conf").exists())
         self.assertFalse((self.target / "etc/sddm.conf.d/autologin.conf").exists())
         self.assertFalse((self.target / "var/lib/sddm/state.conf").exists())
         self.assertTrue(any("sddm.service" in cmd for cmd in self.calls))
@@ -343,7 +343,7 @@ class ConfigureSshAccessDeferProvisioningTest(unittest.TestCase):
 
         phases_impl.configure_ssh_access(ctx)
 
-        staged = self.target / "var/lib/omarchy/provisioning/authorized_keys"
+        staged = self.target / "var/lib/arch-deploy/provisioning/authorized_keys"
         self.assertEqual(staged.read_text(), "ssh-ed25519 AAAA rig@host\n")
         self.assertEqual(staged.stat().st_mode & 0o777, 0o600)
         # No user yet — nothing under /home, no chown.
@@ -369,7 +369,7 @@ class CreateFactorySnapshotTest(unittest.TestCase):
         self.findmnt = {
             "FSTYPE": "btrfs",
             "OPTIONS": "rw,noatime,compress=zstd:3,subvol=/@",
-            "SOURCE": "/dev/mapper/omarchy_root[/@]",
+            "SOURCE": "/dev/mapper/arch_deploy_root[/@]",
         }
         self.calls = []
 
@@ -393,7 +393,7 @@ class CreateFactorySnapshotTest(unittest.TestCase):
         phases_impl.create_factory_snapshot(self.ctx())
 
         top = str(self.state_dir / "factory-top")
-        self.assertIn(["mount", "-o", "subvolid=5", "/dev/mapper/omarchy_root", top], self.calls)
+        self.assertIn(["mount", "-o", "subvolid=5", "/dev/mapper/arch_deploy_root", top], self.calls)
         self.assertIn(
             ["btrfs", "subvolume", "snapshot", f"{top}/@", f"{top}/@factory"],
             self.calls,
@@ -410,11 +410,11 @@ class CreateFactorySnapshotTest(unittest.TestCase):
         top = self.state_dir / "factory-top"
         factory = top / "@factory"
         secrets = [
-            factory / "var/lib/omarchy/provisioning/authorized_keys",
+            factory / "var/lib/arch-deploy/provisioning/authorized_keys",
             factory / "etc/tailscale/authkey",
-            factory / "etc/omarchy/provisioning.key",
+            factory / "etc/arch-deploy/provisioning.key",
         ]
-        keep = factory / "var/lib/omarchy/provisioning/groups"
+        keep = factory / "var/lib/arch-deploy/provisioning/groups"
         for path in [*secrets, keep]:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("secret")

@@ -23,12 +23,12 @@ while [[ $# -gt 0 ]]; do
     ;;
   -*)
     echo "Unknown option: $1"
-    echo "Usage: omarchy-iso-release [--no-make] [--rc] [version]"
+    echo "Usage: arch-deploy-release [--no-make] [--rc] [version]"
     exit 1
     ;;
   *)
     if [[ -n "${BUILD_VERSION-}" ]]; then
-      echo "Usage: omarchy-iso-release [--no-make] [--rc] [version]"
+      echo "Usage: arch-deploy-release [--no-make] [--rc] [version]"
       exit 1
     fi
     BUILD_VERSION="$1"
@@ -38,14 +38,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${BUILD_VERSION-}" ]]; then
-  echo "Usage: omarchy-iso-release [--no-make] [--rc] [version]"
+  echo "Usage: arch-deploy-release [--no-make] [--rc] [version]"
   exit 1
 fi
 
 # A version that already numbers its candidate (4.0.2rc2) is the complete
 # artifact name; the bare -rc suffix exists only for an unnumbered candidate.
 # Without this, every candidate of a train uploads over the same
-# omarchy-X.Y.Z-rc.iso and testers cannot tell which rc they are holding.
+# arch-deploy-X.Y.Z-rc.iso and testers cannot tell which rc they are holding.
 if [[ $BUILD_VERSION == *rc* ]]; then
   RELEASE_SUFFIX=""
 fi
@@ -56,18 +56,18 @@ BUILD_RELEASE_PATH="$BUILD_ROOT/release"
 # Make ISOs
 if [[ ! " ${MAKE_ARGS[*]} " =~ " --no-make " ]]; then
   echo -e "\e[32mMaking $ISO_REF ISO\e[0m"
-  omarchy-iso-make --no-cache --no-boot-offer "${MAKE_ARGS[@]}"
+  arch-deploy-make --no-cache --no-boot-offer "${MAKE_ARGS[@]}"
 else
   echo -e "\e[31mSkipping remaking ISOs\e[0m"
 fi
 
 # Sign and upload ISO
 latest_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*x86_64-"$ISO_REF".iso | head -n1)
-release_iso="$BUILD_RELEASE_PATH/omarchy-$BUILD_VERSION$RELEASE_SUFFIX.iso"
+release_iso="$BUILD_RELEASE_PATH/arch-deploy-$BUILD_VERSION$RELEASE_SUFFIX.iso"
 cp "$latest_iso" "$release_iso"
 
 echo -e "\e[32mSigning $ISO_REF ISO\e[0m"
-omarchy-iso-sign "$release_iso"
+arch-deploy-sign "$release_iso"
 
 # The checksum sidecar names the ISO alone, never the build path: it is
 # downloaded next to the ISO and has to verify with `sha256sum -c` from
@@ -82,7 +82,7 @@ if [[ -z $iso_sha ]] || ! printf '%s  %s\n' "$iso_sha" "${release_iso##*/}" >"$r
 fi
 echo -e "\e[32mSHA256 for $ISO_REF ISO: $iso_sha\e[0m"
 
-omarchy-iso-upload "$release_iso"
+arch-deploy-upload "$release_iso"
 
 # The whole point of a release is handing someone this pair.
 echo -e "\e[32mReleased $ISO_REF ISO $BUILD_VERSION\e[0m"

@@ -10,16 +10,16 @@ set -euo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 
-ISO="$OMARCHY_INTEGRATION_ISO"
-SSH_PORT="${OMARCHY_INTEGRATION_SSH_PORT:-2322}"
-MEMORY="${OMARCHY_INTEGRATION_MEMORY:-8192}"
-INSTALL_TIMEOUT="${OMARCHY_INTEGRATION_INSTALL_TIMEOUT:-2400}"
-NO_PREVIEW="${OMARCHY_INTEGRATION_NO_PREVIEW:-false}"
+ISO="$ARCH_DEPLOY_INTEGRATION_ISO"
+SSH_PORT="${ARCH_DEPLOY_INTEGRATION_SSH_PORT:-2322}"
+MEMORY="${ARCH_DEPLOY_INTEGRATION_MEMORY:-8192}"
+INSTALL_TIMEOUT="${ARCH_DEPLOY_INTEGRATION_INSTALL_TIMEOUT:-2400}"
+NO_PREVIEW="${ARCH_DEPLOY_INTEGRATION_NO_PREVIEW:-false}"
 BOOT_TIMEOUT=600
 
-GUEST_USER="omarchy"
-GUEST_PASSWORD="omarchy"
-GUEST_HOSTNAME="omarchy-test"
+GUEST_USER="arch-deploy"
+GUEST_PASSWORD="arch-deploy"
+GUEST_HOSTNAME="arch-deploy-test"
 
 SCENARIO="${SCENARIO:-$(basename "${0%-test.sh}")}"
 
@@ -38,7 +38,7 @@ HTTP_PID=""
 
 mkdir -p "$BASE_DIR" "$RUN_DIR"
 
-QMP_SOCK=$(mktemp -u "${TMPDIR:-/tmp}/omarchy-integration-qmp.XXXXXX.sock")
+QMP_SOCK=$(mktemp -u "${TMPDIR:-/tmp}/arch-deploy-integration-qmp.XXXXXX.sock")
 PIDFILE="$RUN_DIR/qemu.pid"
 
 FAILURES=0
@@ -393,7 +393,7 @@ EOF
     "audio_config": { "audio": "pipewire" },
     "bootloader_config": { "bootloader": "Limine", "uki": false, "removable": false },
     "custom_commands": [],
-    "omarchy_install": {
+    "arch_deploy_install": {
         "mode": "full_disk",
         "defer_provisioning": false,
         "target_mount": "/mnt",
@@ -479,8 +479,8 @@ EOF
 }
 EOF
 
-  echo "Omarchy Test" >"$dir/user_full_name.txt"
-  echo "test@omarchy.org" >"$dir/user_email_address.txt"
+  echo "arch-deploy Test" >"$dir/user_full_name.txt"
+  echo "test@arch-deploy.org" >"$dir/user_email_address.txt"
   echo "false" >"$dir/user_encrypt_installation.txt"
   cp "$SSH_KEY.pub" "$dir/authorized_keys"
 
@@ -492,7 +492,7 @@ EOF
 
 # The dev/local ISO installs the -dev packages; a stable ISO the plain ones.
 detect_packages() {
-  RUNTIME_PACKAGE=omarchy-dev
+  RUNTIME_PACKAGE=arch-deploy-dev
   SETTINGS_PACKAGE=omarchy-settings-dev
   if [[ $(basename "$ISO") != *dev* && $(basename "$ISO") != *local* && $(basename "$ISO") != *pr* ]]; then
     RUNTIME_PACKAGE=omarchy
@@ -503,7 +503,7 @@ detect_packages() {
 install_phase() {
   log "Installing $(basename "$ISO") unattended via cidata (headless)"
 
-  [[ -f $SSH_KEY ]] || ssh-keygen -t ed25519 -N "" -q -C "omarchy-integration" -f "$SSH_KEY"
+  [[ -f $SSH_KEY ]] || ssh-keygen -t ed25519 -N "" -q -C "arch-deploy-integration" -f "$SSH_KEY"
   detect_packages
   build_cidata
 

@@ -25,14 +25,14 @@ class InstallContext:
     user_configuration: dict
     user_credentials: dict
     arch_config_path: Path
-    omarchy_install: dict[str, Any]
+    arch_deploy_install: dict[str, Any]
     defer_provisioning: bool = False
 
     target: Path = Path("/mnt")
-    omarchy_path: Path = Path("/usr/share/omarchy")
-    state_dir: Path = Path("/run/omarchy-install")
-    log_path: Path = Path("/var/log/omarchy-install.log")
-    target_log_path: Path = Path("/mnt/var/log/omarchy-install.log")
+    arch_deploy_path: Path = Path("/usr/share/omarchy")
+    state_dir: Path = Path("/run/arch-deploy-install")
+    log_path: Path = Path("/var/log/arch-deploy-install.log")
+    target_log_path: Path = Path("/mnt/var/log/arch-deploy-install.log")
 
     # Mutable per-run state shared across phases (e.g., 'arch_config_handler',
     # 'mirror_handler'). Phases populate as needed; later phases read.
@@ -40,30 +40,30 @@ class InstallContext:
 
     @classmethod
     def from_env(cls) -> "InstallContext":
-        config_str = os.environ.get("OMARCHY_INSTALL_CONFIG")
-        creds_str = os.environ.get("OMARCHY_INSTALL_CREDS")
+        config_str = os.environ.get("ARCH_DEPLOY_INSTALL_CONFIG")
+        creds_str = os.environ.get("ARCH_DEPLOY_INSTALL_CREDS")
         if not config_str or not creds_str:
-            raise RuntimeError("OMARCHY_INSTALL_CONFIG and OMARCHY_INSTALL_CREDS must be set")
+            raise RuntimeError("ARCH_DEPLOY_INSTALL_CONFIG and ARCH_DEPLOY_INSTALL_CREDS must be set")
 
         config_path = Path(config_str)
         creds_path = Path(creds_str)
         user_configuration = json.loads(config_path.read_text())
-        omarchy_install = user_configuration.get("omarchy_install") or _default_omarchy_install(user_configuration)
+        arch_deploy_install = user_configuration.get("arch_deploy_install") or _default_arch_deploy_install(user_configuration)
 
         # Autoinstall configs may omit kernels, which makes archinstall default
         # to stock linux. Apply the same hardware default as the configurator,
         # while honoring an explicit selection (including storage-only configs).
         if not user_configuration.get("kernels"):
-            kernel = (omarchy_install.get("storage") or {}).get("kernel") or _default_kernel()
+            kernel = (arch_deploy_install.get("storage") or {}).get("kernel") or _default_kernel()
             user_configuration["kernels"] = [kernel]
 
         # Deferred provisioning: the whole system installs but user creation is deferred to
-        # first boot. Selected by the configurator (omarchy_install.defer_provisioning) or by
+        # first boot. Selected by the configurator (arch_deploy_install.defer_provisioning) or by
         # an `defer-provisioning` marker file on an autoinstall drive, which also replaces the
         # user_credentials.json requirement.
-        defer_provisioning_marker = _optional_path(os.environ.get("OMARCHY_INSTALL_DEFER_PROVISIONING_FILE"))
-        defer_provisioning = bool(omarchy_install.get("defer_provisioning")) or defer_provisioning_marker is not None
-        omarchy_install["defer_provisioning"] = defer_provisioning
+        defer_provisioning_marker = _optional_path(os.environ.get("ARCH_DEPLOY_INSTALL_DEFER_PROVISIONING_FILE"))
+        defer_provisioning = bool(arch_deploy_install.get("defer_provisioning")) or defer_provisioning_marker is not None
+        arch_deploy_install["defer_provisioning"] = defer_provisioning
 
         if creds_path.exists():
             user_credentials = json.loads(creds_path.read_text())
@@ -82,7 +82,7 @@ class InstallContext:
                 user_credentials["encryption_password"] = encryption_password
 
         arch_configuration = dict(user_configuration)
-        arch_configuration.pop("omarchy_install", None)
+        arch_configuration.pop("arch_deploy_install", None)
 
         if defer_provisioning:
             # The userless invariant covers the archinstall config too: a
@@ -91,7 +91,7 @@ class InstallContext:
             # every such field so no account is created before first boot.
             _strip_account_fields(arch_configuration)
 
-        state_dir = Path(os.environ.get("OMARCHY_INSTALL_STATE_DIR", "/run/omarchy-install"))
+        state_dir = Path(os.environ.get("ARCH_DEPLOY_INSTALL_STATE_DIR", "/run/arch-deploy-install"))
         state_dir.mkdir(parents=True, exist_ok=True)
 
         if defer_provisioning:
@@ -111,20 +111,20 @@ class InstallContext:
         ctx = cls(
             config_path=config_path,
             creds_path=creds_path,
-            full_name=_read_text(os.environ.get("OMARCHY_INSTALL_FULL_NAME_FILE")),
-            email=_read_text(os.environ.get("OMARCHY_INSTALL_EMAIL_FILE")),
-            encrypt=_read_text(os.environ.get("OMARCHY_INSTALL_ENCRYPT_FILE")).lower() in ("true", "yes", "1"),
-            authorized_keys_path=_optional_path(os.environ.get("OMARCHY_INSTALL_AUTHORIZED_KEYS_FILE")),
-            tailscale_authkey_path=_optional_path(os.environ.get("OMARCHY_INSTALL_TAILSCALE_AUTHKEY_FILE")),
+            full_name=_read_text(os.environ.get("ARCH_DEPLOY_INSTALL_FULL_NAME_FILE")),
+            email=_read_text(os.environ.get("ARCH_DEPLOY_INSTALL_EMAIL_FILE")),
+            encrypt=_read_text(os.environ.get("ARCH_DEPLOY_INSTALL_ENCRYPT_FILE")).lower() in ("true", "yes", "1"),
+            authorized_keys_path=_optional_path(os.environ.get("ARCH_DEPLOY_INSTALL_AUTHORIZED_KEYS_FILE")),
+            tailscale_authkey_path=_optional_path(os.environ.get("ARCH_DEPLOY_INSTALL_TAILSCALE_AUTHKEY_FILE")),
             user_configuration=user_configuration,
             user_credentials=user_credentials,
             arch_config_path=arch_config_path,
-            omarchy_install=omarchy_install,
+            arch_deploy_install=arch_deploy_install,
             defer_provisioning=defer_provisioning,
             state_dir=state_dir,
         )
         disk_config = user_configuration.get("disk_config", {})
-        target_mount = omarchy_install.get("target_mount") or disk_config.get("mountpoint")
+        target_mount = arch_deploy_install.get("target_mount") or disk_config.get("mountpoint")
         if target_mount:
             ctx.target = Path(target_mount)
         return ctx
@@ -140,7 +140,7 @@ class InstallContext:
 
     @property
     def mode(self) -> str:
-        if mode := self.omarchy_install.get("mode"):
+        if mode := self.arch_deploy_install.get("mode"):
             return mode
         cfg_type = self.user_configuration.get("disk_config", {}).get("config_type")
         return "protected" if cfg_type == "pre_mounted_config" else "full_disk"
@@ -194,7 +194,7 @@ def _default_kernel(pci_devices: Path = Path("/sys/bus/pci/devices")) -> str:
     return "linux-omarchy"
 
 
-def _default_omarchy_install(user_configuration: dict) -> dict[str, Any]:
+def _default_arch_deploy_install(user_configuration: dict) -> dict[str, Any]:
     disk_config = user_configuration.get("disk_config", {})
     mode = "protected" if disk_config.get("config_type") == "pre_mounted_config" else "full_disk"
     return {

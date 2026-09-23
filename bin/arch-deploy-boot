@@ -4,16 +4,16 @@ set -e
 
 ISO=""
 REUSE=""
-SSH_HOST="${OMARCHY_VM_SSH_HOST:-127.0.0.1}"
-SSH_PORT="${OMARCHY_VM_SSH_PORT:-2222}"
-NETWORK="${OMARCHY_VM_NETWORK:-1}"
-DISK="${OMARCHY_VM_DISK:-/tmp/omarchy-iso-boot.qcow2}"
-OVMF_VARS="${OMARCHY_VM_OVMF_VARS:-/tmp/OVMF_VARS.4m.fd}"
+SSH_HOST="${ARCH_DEPLOY_VM_SSH_HOST:-127.0.0.1}"
+SSH_PORT="${ARCH_DEPLOY_VM_SSH_PORT:-2222}"
+NETWORK="${ARCH_DEPLOY_VM_NETWORK:-1}"
+DISK="${ARCH_DEPLOY_VM_DISK:-/tmp/arch-deploy-boot.qcow2}"
+OVMF_VARS="${ARCH_DEPLOY_VM_OVMF_VARS:-/tmp/OVMF_VARS.4m.fd}"
 EXTRA_QEMU_ARGS=()
 
 usage() {
   cat <<USAGE
-Usage: omarchy-iso-boot [options] [release/omarchy.iso] [reuse]
+Usage: arch-deploy-boot [options] [release/arch-deploy.iso] [reuse]
 
 Options:
   --reuse              Reuse the existing VM disk
@@ -112,7 +112,7 @@ if [[ -z $DISK || -z $OVMF_VARS ]]; then
   exit 1
 fi
 
-omarchy-pkg-add qemu-full edk2-ovmf
+arch-deploy-pkg-add qemu-full edk2-ovmf
 
 if [[ -z ${WAYLAND_DISPLAY:-} && -z ${DISPLAY:-} ]]; then
   while IFS='=' read -r name value; do
@@ -126,7 +126,7 @@ fi
 
 if [[ -z ${WAYLAND_DISPLAY:-} && -z ${DISPLAY:-} ]]; then
   echo "Unable to find a graphical session for QEMU." >&2
-  echo "Run omarchy-iso-boot from the Omarchy desktop session." >&2
+  echo "Run arch-deploy-boot from the arch-deploy desktop session." >&2
   exit 1
 fi
 

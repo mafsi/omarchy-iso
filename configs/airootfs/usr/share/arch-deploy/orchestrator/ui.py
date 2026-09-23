@@ -1,6 +1,6 @@
 """Orchestrator progress lines.
 
-These land in the install log, not on a screen: omarchy-install-dashboard owns
+These land in the install log, not on a screen: arch-deploy-install-dashboard owns
 the visible UI, captures the orchestrator's stdout into the support log, and
 strips CSI sequences on the way in. The colouring was therefore never seen by
 anyone, while gum charged a Go process start per line for it. Plain writes keep

@@ -64,7 +64,7 @@ _disk_abort() {
 
 # Run a disk-writing command, fold its stderr into stdout, and abort on a
 # non-zero exit. The fold matters: .automated_script.sh tees stdout into
-# /var/log/omarchy-install.log but sends stderr straight to the tty (gum draws
+# /var/log/arch-deploy-install.log but sends stderr straight to the tty (gum draws
 # its TUI there), so an unwrapped failure leaves no trace in the log the user
 # uploads — and the configurator's next screen clears it off the display too.
 disk_step() {
